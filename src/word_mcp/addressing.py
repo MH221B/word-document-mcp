@@ -1,0 +1,123 @@
+"""Turn an agent request into concrete document locations, or into candidates."""
+
+from __future__ import annotations
+
+import re
+import secrets
+from dataclasses import dataclass, field
+from typing import Any
+
+from word_mcp.errors import AmbiguousTarget, InvalidArgument, StaleToken, TargetNotFound
+
+MAX_CANDIDATES = 50
+CONTAINERS = {"body", "header", "footer", "footnote", "endnote", "comment"}
+
+
+@dataclass
+class TargetSpec:
+    token: str | None = None
+    text: str | None = None
+    wildcards: bool = False
+    match_case: bool = False
+    style: str | None = None
+    heading_path: str | None = None
+    container: str = "body"
+    occurrence: int | None = None
+
+
+@dataclass
+class Match:
+    token: str
+    text: str
+    paragraph_index: int
+    heading_path: str
+    style: str
+    container: str
+    snippet: str
+    handle: Any = field(repr=False, default=None)
+
+    def describe(self) -> dict:
+        return {
+            "token": self.token,
+            "text": self.text,
+            "paragraph_index": self.paragraph_index,
+            "heading_path": self.heading_path,
+            "style": self.style,
+            "container": self.container,
+            "snippet": self.snippet,
+        }
+
+
+class TokenStore:
+    """Holds resolved locations for the life of the session."""
+
+    def __init__(self) -> None:
+        self._items: dict[str, Match] = {}
+
+    def add(self, match: Match) -> str:
+        token = match.token or secrets.token_hex(4)
+        match.token = token
+        self._items[token] = match
+        return token
+
+    def get(self, token: str) -> Match:
+        match = self._items.get(token)
+        if match is None:
+            raise StaleToken(
+                f"Anchor {token} is unknown. Read the document again to get a fresh one."
+            )
+        self.validate(match)
+        return match
+
+    def validate(self, match: Match) -> None:
+        handle = match.handle
+        if handle is None:
+            return
+        try:
+            if handle.Start > handle.End:
+                raise StaleToken(f"Anchor {match.token} no longer covers any content.")
+        except StaleToken:
+            raise
+        except Exception as exc:  # the range's document was closed
+            del self._items[match.token]
+            raise StaleToken(
+                f"Anchor {match.token} is no longer valid; the document changed."
+            ) from exc
+
+    def clear(self) -> None:
+        self._items.clear()
+
+
+def normalise(text: str) -> str:
+    """Agents and Word disagree about whitespace and quotes. Meet in the middle."""
+    text = text.replace("\u2018", "'").replace("\u2019", "'")
+    text = text.replace("\u201c", '"').replace("\u201d", '"')
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def choose(text: str, candidates: list[Match], occurrence: int | None) -> list[Match]:
+    """Narrow matches by occurrence, or fail and hand the candidates back."""
+    if occurrence is not None:
+        if occurrence < 0 or occurrence >= len(candidates):
+            raise TargetNotFound(
+                f"Occurrence {occurrence} is out of range.",
+                found=len(candidates),
+            )
+        return [candidates[occurrence]]
+    if len(candidates) > 1:
+        raise AmbiguousTarget(
+            f"{len(candidates)} locations match. Narrow with heading_path, "
+            "container, occurrence, or use one of the returned tokens.",
+            candidates=[c.describe() for c in candidates[:MAX_CANDIDATES]],
+        )
+    if not candidates:
+        raise TargetNotFound(f"Nothing matched {text!r}.")
+    return candidates
+
+
+def check_container(container: str) -> str:
+    if container not in CONTAINERS:
+        raise InvalidArgument(
+            f"Unknown container {container!r}.", allowed=sorted(CONTAINERS)
+        )
+    return container
