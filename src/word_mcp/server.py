@@ -209,7 +209,7 @@ def manage_style(
             SESSION, HISTORY, inspect.resolve, action=action, spec=spec, name=name,
             based_on=based_on, formatting=formatting, confirm=confirm,
         )
-    return mutate(go)
+    return run(go) if action == "list" else mutate(go)
 
 
 @mcp.tool()
@@ -345,7 +345,7 @@ def edit_links(
             sub_address=sub_address, screen_tip=screen_tip, display_text=display_text,
             name=name, text=text,
         )
-    return mutate(go)
+    return run(go) if action == "bookmark_find" else mutate(go)
 
 
 @mcp.tool()
@@ -367,7 +367,7 @@ def edit_content_controls(
             control_index=control_index, control_type=control_type, tag=tag,
             title=title, value=value, items=items,
         )
-    return mutate(go)
+    return run(go) if action == "list" else mutate(go)
 
 
 @mcp.tool()
