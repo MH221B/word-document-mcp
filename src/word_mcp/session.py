@@ -11,6 +11,7 @@ import pythoncom
 import win32com.client
 from pythoncom import com_error
 
+from word_mcp.docindex import StructureIndex
 from word_mcp.errors import (
     DocumentAmbiguous,
     DocumentNotFound,
@@ -56,6 +57,7 @@ class ComWordSession:
     def __init__(self) -> None:
         self._doc: Any = None
         self._info: DocumentInfo | None = None
+        self._index: StructureIndex | None = None
 
     # -- connection ---------------------------------------------------------
 
@@ -173,11 +175,13 @@ class ComWordSession:
             )
         self._doc = matches[0][1]
         self._info = self._info_for(self._doc)
+        self._index = None
         return self._info
 
     def unpin(self) -> None:
         self._doc = None
         self._info = None
+        self._index = None
 
     def pinned(self) -> DocumentInfo | None:
         return self._info
@@ -195,6 +199,23 @@ class ComWordSession:
                 now=info.path,
             )
         return self._doc
+
+    def index(self) -> StructureIndex:
+        """The structure index for the pinned document.
+
+        Rebuilt only when the document's character count changed, so a repeated
+        read costs a single cheap property read. The build writes into a local
+        and is assigned only when complete, so a failure publishes nothing.
+        """
+        doc = self.doc()
+        fingerprint = int(self.guard(lambda: doc.Content.End))
+        if self._index is None or self._index.fingerprint != fingerprint:
+            self._index = StructureIndex.build(self, fingerprint)
+        return self._index
+
+    def invalidate_index(self) -> None:
+        """Drop the cached index; the next index() rebuilds it."""
+        self._index = None
 
     # -- guard --------------------------------------------------------------
 
