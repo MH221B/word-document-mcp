@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from word_mcp import inspect
 from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
+from word_mcp.operations import document as document_ops
 from word_mcp.operations import text as text_ops
 from word_mcp.session import ComWordSession
 
@@ -149,3 +150,21 @@ def format_text(
             action=action, formatting=formatting, source=source, confirm=confirm,
         )
     return run(go)
+
+
+@mcp.tool()
+def revert_change(operation_id: int) -> str:
+    """Revert the newest change. Reverts text and formatting only."""
+    return run(lambda: document_ops.revert_change(SESSION, HISTORY, operation_id))
+
+
+@mcp.tool()
+def save_document() -> str:
+    """Save the pinned document."""
+    return run(lambda: document_ops.save_document(SESSION))
+
+
+@mcp.tool()
+def set_document_properties(properties: dict) -> str:
+    """Set built-in (Title, Author, ...) or custom document properties."""
+    return run(lambda: document_ops.set_document_properties(SESSION, properties))

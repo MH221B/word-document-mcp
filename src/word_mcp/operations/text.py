@@ -43,13 +43,19 @@ def edit_text(
 
 def _insert(session, stack, doc, rng, text, position, format_mode, formatting) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
+    before = str(session.guard(lambda: rng.Text))
     start = int(session.guard(lambda: rng.Start))
-    change = stack.record("text", f"insert at {position}", rng, text_before="")
+    end = int(session.guard(lambda: rng.End))
     if position == "end":
         session.guard(lambda: rng.InsertAfter(text))
+        inserted = session.guard(lambda: doc.Range(end, int(rng.End)))
+        change = stack.record("text", "insert at end", inserted, text_before="")
     elif position == "start":
         session.guard(lambda: rng.InsertBefore(text))
+        inserted = session.guard(lambda: doc.Range(int(rng.Start), start))
+        change = stack.record("text", "insert at start", inserted, text_before="")
     elif position == "replace":
+        change = stack.record("text", "insert at replace", rng, text_before=before)
         session.guard(lambda: setattr(rng, "Text", text))
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
