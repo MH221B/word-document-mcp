@@ -111,3 +111,114 @@ def document_outline(session, depth: int = 9) -> dict:
         "sections": sections,
         "images": images,
     }
+
+
+WD_UNDEFINED = 9999999
+
+FONT_PROPS = [
+    "Name", "Size", "Bold", "Italic", "Underline", "Color", "HighlightColorIndex",
+    "Superscript", "Subscript", "AllCaps", "SmallCaps", "Spacing", "Scaling",
+]
+
+PARA_PROPS = [
+    "Alignment", "LeftIndent", "RightIndent", "FirstLineIndent", "SpaceBefore",
+    "SpaceAfter", "LineSpacing", "LineSpacingRule", "KeepWithNext", "KeepTogether",
+    "WidowControl", "PageBreakBefore",
+]
+
+
+def _snapshot(obj: Any, props: list[str], session) -> dict:
+    out = {}
+    for prop in props:
+        try:
+            value = session.guard(lambda p=prop: getattr(obj, p))
+        except Exception:
+            continue  # a property Word does not expose here is simply absent
+        if value == WD_UNDEFINED:
+            continue
+        out[prop] = value
+    return out
+
+
+def deviations(session, handle) -> dict:
+    """Properties where direct formatting differs from the style definition."""
+    style = session.guard(lambda: handle.Style)
+    direct = _snapshot(handle.Font, FONT_PROPS, session)
+    inherited = _snapshot(style.Font, FONT_PROPS, session)
+    para_direct = _snapshot(handle.ParagraphFormat, PARA_PROPS, session)
+    para_style = _snapshot(style.ParagraphFormat, PARA_PROPS, session)
+    return {
+        prop: {"direct": value, "style": inherited.get(prop)}
+        for prop, value in {**direct, **para_direct}.items()
+        if prop in {**inherited, **para_style} and value != {**inherited, **para_style}[prop]
+    }
+
+
+def read_range(session, spec, include_formatting: bool = False) -> dict:
+    match = resolve(session, spec)
+    text = session.guard(lambda: match.handle.Text)
+    payload = {"target": match.describe(), "text": text}
+    if include_formatting:
+        payload["formatting"] = get_formatting(session, spec)
+    return payload
+
+
+def get_formatting(session, spec) -> dict:
+    match = resolve(session, spec)
+    handle = match.handle
+    paragraph = session.guard(lambda: handle.Paragraphs(1))
+    payload = {
+        "target": match.describe(),
+        "paragraph_style": str(session.guard(lambda: paragraph.Style.NameLocal)),
+        "character_style": str(session.guard(lambda: handle.Style.NameLocal)),
+        "surrounding_style": str(session.guard(lambda: handle.Paragraphs(1).Range.Style.NameLocal)),
+        "font": _snapshot(handle.Font, FONT_PROPS, session),
+        "paragraph": _snapshot(handle.ParagraphFormat, PARA_PROPS, session),
+        "deviations_from_style": deviations(session, handle),
+    }
+    return payload
+
+
+def search_range(session, doc: Any, spec: TargetSpec):
+    """The range a search runs against."""
+    if spec.container == "body":
+        return doc.Content
+    if spec.container == "header":
+        return doc.Sections(1).Headers(1).Range
+    if spec.container == "footer":
+        return doc.Sections(1).Footers(1).Range
+    raise InvalidArgument(f"Container {spec.container!r} is not supported yet.")
+
+
+def find_all(session, spec: TargetSpec) -> list[Match]:
+    """Every match, without the ambiguity failure. Used by find_text."""
+    doc = session.doc()
+    handle = search_range(session, doc, spec)
+    find = session.guard(lambda: handle.Find)
+    session.guard(lambda: setattr(find, "Text", spec.text or ""))
+    session.guard(lambda: setattr(find, "Forward", True))
+    session.guard(lambda: setattr(find, "Wrap", 0))  # wdFindStop
+    session.guard(lambda: setattr(find, "MatchCase", spec.match_case))
+    session.guard(lambda: setattr(find, "MatchWildcards", spec.wildcards))
+    if spec.style:
+        session.guard(lambda: setattr(find, "Style", spec.style))
+    found: list[Match] = []
+    while session.guard(lambda: bool(find.Execute())):
+        rng = session.guard(lambda: doc.Range(find.Parent.Start, find.Parent.End))
+        found.append(match_from_range(session, doc, rng, container=spec.container))
+        if len(found) >= MAX_CANDIDATES:
+            break
+    return found
+
+
+def resolve(session, spec: TargetSpec) -> Match:
+    """One location, or an exception carrying the candidates."""
+    if spec.token:
+        return TOKENS.get(spec.token)
+    if spec.text or spec.style or spec.heading_path:
+        found = find_all(session, spec)
+        if spec.heading_path:
+            narrowed = [m for m in found if spec.heading_path in m.heading_path]
+            found = narrowed or found
+        return choose(spec.text or spec.style or "", found, spec.occurrence)[0]
+    raise InvalidArgument("Give a token, or text, style, or heading_path.")

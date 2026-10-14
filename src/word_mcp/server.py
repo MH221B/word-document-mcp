@@ -57,3 +57,15 @@ def disconnect_document() -> str:
 def document_outline(depth: int = 9) -> str:
     """Headings, tables, sections, and images, each with an anchor token."""
     return run(lambda: inspect.document_outline(SESSION, depth))
+
+
+@mcp.tool()
+def read_range(target: dict, include_formatting: bool = False) -> str:
+    """Read text at a target. Target is {"token": "..."} or {"text": "...", ...}."""
+    return run(lambda: inspect.read_range(SESSION, inspect.TargetSpec(**target), include_formatting))
+
+
+@mcp.tool()
+def get_formatting(target: dict) -> str:
+    """Formatting for a target, plus where direct formatting deviates from the style."""
+    return run(lambda: inspect.get_formatting(SESSION, inspect.TargetSpec(**target)))
