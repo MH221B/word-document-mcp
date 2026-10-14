@@ -11,22 +11,27 @@ on Windows. See `docs/superpowers/specs/2026-10-14-word-document-mcp-design.md`.
 ## Register with an MCP client
 
 OpenCode reads `mcp` entries from its config, global at
-`~/.config/opencode/opencode.jsonc` or per project:
+`~/.config/opencode/opencode.jsonc` or per project. Put the checkout's own path
+where the placeholder is, in the form that machine uses (`D:/word-document-mcp`,
+`/home/you/word-document-mcp`); forward slashes work everywhere:
 
     {
       "mcp": {
         "word": {
           "type": "local",
-          "command": ["D:/word-document-mcp/.venv/Scripts/python.exe", "-m", "word_mcp"],
+          "command": ["uv", "run", "--directory", "<path to this checkout>", "word-mcp"],
           "enabled": true
         }
       }
     }
 
-The venv's Python starts the server with no dependency resolution at launch. To
-have the client manage the environment instead, use
-`["uv", "run", "--directory", "D:/word-document-mcp", "word-mcp"]`, which resolves
-the project on every start.
+`uv run` creates the environment if it is missing and resolves dependencies at
+launch, so nothing else has to be set up first. To skip that resolution on every
+start, point at the environment's interpreter directly, which is
+`<path to this checkout>/.venv/Scripts/python.exe` on Windows and
+`<path to this checkout>/.venv/bin/python` on macOS and Linux:
+
+    "command": ["<path to this checkout>/.venv/Scripts/python.exe", "-m", "word_mcp"]
 
 Word must be running with the target document open, in the same user session.
 
