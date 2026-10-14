@@ -36,6 +36,21 @@ def run(fn: Callable[[], Any]) -> str:
         return tool_error(exc)
 
 
+def mutate(fn: Callable[[], Any]) -> str:
+    """Call a mutating operation, then drop the cached structure index.
+
+    A restyle changes heading levels without changing any text, so the index
+    fingerprint cannot detect it and the next read must rebuild.
+    """
+    try:
+        out = fn()
+    except WordMcpError as exc:
+        return tool_error(exc)
+    finally:
+        SESSION.invalidate_index()
+    return json.dumps(out, indent=2, default=str)
+
+
 @mcp.tool()
 def list_open_documents() -> str:
     """List every document currently open in Word."""
@@ -137,7 +152,7 @@ def edit_text(
             action=action, text=text, position=position, format_mode=format_mode,
             formatting=formatting, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -154,13 +169,13 @@ def format_text(
             SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
             action=action, formatting=formatting, source=source, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
 def revert_change(operation_id: int) -> str:
     """Revert the newest change. Reverts text and formatting only."""
-    return run(lambda: document_ops.revert_change(SESSION, HISTORY, operation_id))
+    return mutate(lambda: document_ops.revert_change(SESSION, HISTORY, operation_id))
 
 
 @mcp.tool()
@@ -172,7 +187,7 @@ def save_document() -> str:
 @mcp.tool()
 def set_document_properties(properties: dict) -> str:
     """Set built-in (Title, Author, ...) or custom document properties."""
-    return run(lambda: document_ops.set_document_properties(SESSION, properties))
+    return mutate(lambda: document_ops.set_document_properties(SESSION, properties))
 
 
 @mcp.tool()
@@ -191,7 +206,7 @@ def manage_style(
             SESSION, HISTORY, inspect.resolve, action=action, spec=spec, name=name,
             based_on=based_on, formatting=formatting, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -210,7 +225,7 @@ def manage_list(
             spec=inspect.TargetSpec(**target), list_format=list_format, level=level,
             start_at=start_at, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -238,7 +253,7 @@ def edit_table(
             columns=columns, values=values, formatting=formatting, label=label,
             title=title, position=position, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -264,7 +279,7 @@ def edit_page_layout(
             which=which, text=text, different_first_page=different_first_page,
             odd_and_even=odd_and_even,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -281,7 +296,7 @@ def edit_fields(
             SESSION, inspect.resolve, action=action, spec=spec, field=field,
             toc_options=toc_options,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -305,7 +320,7 @@ def edit_media(
             path=path, width=width, height=height, wrap=wrap, label=label, title=title,
             position=position,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -327,7 +342,7 @@ def edit_links(
             sub_address=sub_address, screen_tip=screen_tip, display_text=display_text,
             name=name, text=text,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -349,7 +364,7 @@ def edit_content_controls(
             control_index=control_index, control_type=control_type, tag=tag,
             title=title, value=value, items=items,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -369,7 +384,7 @@ def edit_annotations(
             SESSION, inspect.resolve, action=action, spec=spec, text=text,
             comment_index=comment_index, done=done, mode=mode, confirm=confirm,
         )
-    return run(go)
+    return mutate(go)
 
 
 @mcp.tool()
@@ -379,4 +394,4 @@ def insert_ooxml(target: dict, ooxml: str, confirm: bool = False) -> str:
         return ooxml_ops.insert_ooxml(
             SESSION, HISTORY, inspect.resolve, inspect.TargetSpec(**target), ooxml, confirm=confirm
         )
-    return run(go)
+    return mutate(go)
