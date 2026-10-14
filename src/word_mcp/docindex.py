@@ -91,13 +91,18 @@ class StructureIndex:
             rng = PARAGRAPH.get(para, "Range")
             while stack and stack[-1].level >= level:
                 stack.pop()
+            start = RANGE.get(rng, "Start")
+            # A paragraph's range includes its paragraph mark. The heading's range
+            # stops before it, so a token for a heading covers the heading and not
+            # the break: deleting it must not merge the next paragraph into it.
+            end = max(start, RANGE.get(rng, "End") - 1)
             headings.append(
                 Heading(
                     level=level,
                     style=STYLE.get(RANGE.get(rng, "Style"), "NameLocal"),
                     text=RANGE.get(rng, "Text").strip(),
-                    start=RANGE.get(rng, "Start"),
-                    end=RANGE.get(rng, "End"),
+                    start=start,
+                    end=end,
                     path=" > ".join(h.text for h in stack),
                 )
             )

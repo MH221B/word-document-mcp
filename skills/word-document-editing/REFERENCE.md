@@ -38,6 +38,10 @@ or `find_text`. A heading's token stays valid across calls until the document
 changes, because `document_outline` reuses the same tokens while the structure is
 unchanged.
 
+A heading's token covers the heading's text and stops before its paragraph mark.
+Deleting through it empties the heading and leaves the paragraph where it is,
+rather than eating the break and merging the next paragraph into the heading.
+
 ## Connection
 
 | Tool | Parameters | Notes |

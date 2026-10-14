@@ -219,6 +219,29 @@ def test_caption_above_the_anchor_is_found(session):
     assert "Above caption" in caption["text"], "the caption above the table is located"
 
 
+def test_deleting_a_heading_keeps_its_paragraph(session):
+    """A heading's token stops before its paragraph mark, so deleting the heading
+    must not delete the break and merge the next paragraph into it."""
+    outline = inspect.document_outline(session)
+    heading = next(h for h in outline["headings"] if h["text"] == "Risks")
+    paragraphs_before = int(session.guard(lambda: session.doc().Paragraphs.Count))
+    index = session.index()
+    stack = ChangeStack()
+    session.begin_change()
+    result = text_ops.edit_text(
+        session, stack, inspect.TargetSpec(token=heading["token"]), inspect.resolve,
+        action="delete",
+    )
+    session.settle_index()
+    assert int(session.guard(lambda: session.doc().Paragraphs.Count)) == paragraphs_before
+    assert session.index() is index, "no paragraph mark moved, so the index patches"
+    after = inspect.document_outline(session)
+    assert len(after["headings"]) == len(outline["headings"]), "the heading paragraph survives"
+    emptied = next(h for h in after["headings"] if h["paragraph_index"] == heading["paragraph_index"])
+    assert emptied["text"] == ""
+    document_ops.revert_change(session, stack, result["operation_id"])
+
+
 def test_saved_copy_carries_the_text(tmp_path, session):
     """Read the saved file with python-docx, so the check does not depend on our
     own reader. Must stay last: it saves the document to a copy, then puts it
