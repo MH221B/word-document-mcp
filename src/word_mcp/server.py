@@ -1,0 +1,52 @@
+"""MCP tool registration. Validation and dispatch only, no COM here."""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Callable
+
+from mcp.server.fastmcp import FastMCP
+
+from word_mcp.errors import WordMcpError
+from word_mcp.session import ComWordSession
+
+mcp = FastMCP("word")
+SESSION = ComWordSession()
+
+
+def tool_error(exc: WordMcpError) -> str:
+    return json.dumps({"error": exc.to_dict()}, indent=2)
+
+
+def run(fn: Callable[[], Any]) -> str:
+    """Call an operation, turning domain errors into tool output."""
+    try:
+        return json.dumps(fn(), indent=2, default=str)
+    except WordMcpError as exc:
+        return tool_error(exc)
+
+
+@mcp.tool()
+def list_open_documents() -> str:
+    """List every document currently open in Word."""
+    def go():
+        return {"documents": [d.__dict__ for d in SESSION.documents()]}
+    return run(go)
+
+
+@mcp.tool()
+def connect_document(path_or_name: str) -> str:
+    """Pin one open document for the session. Fails if the name is ambiguous."""
+    def go():
+        info = SESSION.pin(path_or_name)
+        return {"pinned": info.__dict__, "read_only": info.read_only}
+    return run(go)
+
+
+@mcp.tool()
+def disconnect_document() -> str:
+    """Forget the pinned document."""
+    def go():
+        SESSION.unpin()
+        return {"pinned": None}
+    return run(go)

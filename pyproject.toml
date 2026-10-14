@@ -3,7 +3,7 @@ name = "word-mcp"
 version = "0.1.0"
 description = "MCP server for reading and editing the Word document the user has open"
 requires-python = ">=3.11"
-dependencies = ["mcp>=1.2", "pywin32>=306"]
+dependencies = ["mcp>=1.2,<2", "pywin32>=306"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "python-docx>=1.1"]
