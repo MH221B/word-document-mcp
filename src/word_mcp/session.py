@@ -278,10 +278,16 @@ class ComWordSession:
             self.invalidate_index()  # the index was already stale before the edit
             return
         count = int(self.guard(lambda: doc.Paragraphs.Count))
-        if count != index.paragraph_count or not index.levels_match(self, doc, start, end):
+        if count != index.paragraph_count:
             self.invalidate_index()
             return
+        # Patch first: it shifts the stored offsets into post-edit space, which is
+        # the space levels_match reads the document in. Any check below that fails
+        # drops the index anyway, so shifting before verifying costs nothing.
         if not index.patch(start, end_now - self._end_before, end_now, count):
+            self.invalidate_index()
+            return
+        if not index.levels_match(self, doc, start, end):
             self.invalidate_index()
             return
         index.refresh_span(self, doc, start, end)

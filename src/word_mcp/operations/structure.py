@@ -7,7 +7,7 @@ from word_mcp.history import ChangeStack
 from word_mcp.operations import caption_paragraph, gate_delete, gate_range
 from word_mcp.session import require_writable
 
-WD_CAPTION_ABOVE = -1
+WD_CAPTION_ABOVE = 0
 WD_CAPTION_BELOW = 1
 
 

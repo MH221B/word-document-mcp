@@ -102,7 +102,7 @@ def _caption_image(session, shape, label: str, title: str, position: str) -> dic
     end = int(session.guard(lambda: para.End))
     session.guard(
         lambda: para.InsertCaption(
-            Label=label, Title=title, Position=-1 if position == "above" else 1
+            Label=label, Title=title, Position=0 if position == "above" else 1
         )
     )
     caption_para = caption_paragraph(session, doc, start, end, position)
