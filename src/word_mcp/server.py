@@ -262,3 +262,20 @@ def edit_page_layout(
             odd_and_even=odd_and_even,
         )
     return run(go)
+
+
+@mcp.tool()
+def edit_fields(
+    action: str,
+    target: dict | None = None,
+    field: str = "page",
+    toc_options: dict | None = None,
+) -> str:
+    """Insert fields, update fields, insert a table of contents or table of figures."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return structure_ops.edit_fields(
+            SESSION, inspect.resolve, action=action, spec=spec, field=field,
+            toc_options=toc_options,
+        )
+    return run(go)

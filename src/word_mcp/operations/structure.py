@@ -268,3 +268,79 @@ def edit_page_layout(
     raise InvalidArgument(
         f"Unknown action {action!r}.", allowed=["page_setup", "section_break", "header_footer", "flags"]
     )
+
+
+WD_FIELD_PAGE = 33
+WD_FIELD_DATE = 31
+WD_FIELD_SEQUENCE = 12
+WD_FIELD_TOC = 37
+
+
+def edit_fields(
+    session,
+    resolve,
+    action: str,
+    spec=None,
+    field: str = "page",
+    toc_options: dict | None = None,
+) -> dict:
+    doc = session.doc()
+    require_writable(doc)
+
+    if action == "insert":
+        match = resolve(session, spec)
+        kinds = {"page": WD_FIELD_PAGE, "date": WD_FIELD_DATE, "sequence": WD_FIELD_SEQUENCE}
+        if field not in kinds:
+            raise InvalidArgument(f"Unknown field {field!r}.", allowed=sorted(kinds))
+        inserted = session.guard(lambda: match.handle.Fields.Add(match.handle, kinds[field]))
+        return {"inserted": field, "at": match.describe(), "code": str(session.guard(lambda: inserted.Code.Text))}
+
+    if action == "update_all":
+        session.guard(lambda: doc.Fields.Update())
+        return {"updated": "all fields"}
+
+    if action == "update":
+        match = resolve(session, spec)
+        fields = session.guard(lambda: list(match.handle.Fields))
+        for item in fields:
+            session.guard(lambda f=item: f.Update())
+        return {"updated": len(fields), "at": match.describe()}
+
+    if action == "toc":
+        options = toc_options or {}
+        match = resolve(session, spec)
+        toc = session.guard(
+            lambda: doc.TablesOfContents.Add(
+                Range=match.handle,
+                UseHeadingStyles=True,
+                UpperHeadingLevel=options.get("upper_heading_level", 1),
+                LowerHeadingLevel=options.get("lower_heading_level", 3),
+                RightAlignPageNumbers=True,
+                IncludePageNumbers=True,
+                UseHyperlinks=True,
+            )
+        )
+        session.guard(lambda: toc.Update())
+        return {"toc_inserted": True, "at": match.describe()}
+
+    if action == "table_of_figures":
+        options = toc_options or {}
+        match = resolve(session, spec)
+        label = options.get("label", "Figure")
+        tof = session.guard(
+            lambda: doc.TablesOfFigures.Add(
+                Range=match.handle,
+                Caption=label,
+                IncludeLabel=True,
+                RightAlignPageNumbers=True,
+                IncludePageNumbers=True,
+                UseHyperlinks=True,
+            )
+        )
+        session.guard(lambda: tof.Update())
+        return {"table_of_figures_inserted": True, "label": label, "at": match.describe()}
+
+    raise InvalidArgument(
+        f"Unknown action {action!r}.",
+        allowed=["insert", "update", "update_all", "toc", "table_of_figures"],
+    )
