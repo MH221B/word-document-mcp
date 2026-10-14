@@ -9,6 +9,7 @@ so a run leaves plain.docx pointed at a new path; reopen plain.docx afterwards.
 import pytest
 
 from word_mcp import inspect
+from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import document as document_ops
 from word_mcp.operations import structure as structure_ops
@@ -21,7 +22,10 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="module")
 def session():
     s = ComWordSession()
-    s.pin("plain.docx")
+    try:
+        s.pin("plain.docx")
+    except WordMcpError as exc:
+        pytest.skip(f"Word or samples/plain.docx is not available: {exc}")
     yield s
 
 
