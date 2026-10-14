@@ -30,7 +30,7 @@ def insert_ooxml(
     match = resolve(session, spec)
     handle = match.handle
     before = str(session.guard(lambda: handle.Text))
-    change = stack.record("text", "insert ooxml", handle, text_before=before)
+    change = stack.record("text", "insert ooxml", handle, container=spec.container, text_before=before)
     session.guard(lambda: handle.InsertXML(ooxml))
     return {
         "operation_id": change.op_id,

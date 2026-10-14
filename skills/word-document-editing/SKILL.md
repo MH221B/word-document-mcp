@@ -50,9 +50,20 @@ collect them.
 
 **Page furniture.** `edit_page_layout` handles page setup, columns, section
 breaks, and headers and footers by `side` and `which`. `header_footer` writes
-literal text only, and a live page number cannot be placed in a footer: a footer
-target is resolved against the main text story, so `edit_fields("insert",
-field="page")` lands in the body instead.
+literal text. Header and footer offsets belong to their own story, so a target
+with `container="footer"` stays in the footer. Section 1 only.
+
+Putting a page number in a footer takes two steps, because inserting a field
+replaces the text it was aimed at. Insert the field over a placeholder, then put
+the literal text back in front of it:
+
+```
+edit_page_layout("header_footer", side="footer", which="primary", text="NN")
+res = edit_fields("insert", target={"text": "NN", "container": "footer"}, field="page")
+edit_text(res["at"]["token"], "insert", text="Page ", position="start")
+```
+
+The footer then reads "Page 1", with the number still a live field.
 
 **Comments and revisions.** `edit_annotations` adds and replies to comments, and
 toggles track changes. Resolving a comment is not supported on this Word build.

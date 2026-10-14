@@ -29,48 +29,53 @@ def edit_text(
 
     if action == "insert":
         gate_range(len(text), confirm)
-        return _insert(session, stack, doc, rng, text, position, format_mode, formatting)
+        return _insert(session, stack, doc, rng, text, position, format_mode, formatting, spec.container)
     if action == "replace":
         gate_delete(before, confirm)
-        return _replace(session, stack, doc, rng, text, format_mode, formatting)
+        return _replace(session, stack, doc, rng, text, format_mode, formatting, spec.container)
     if action == "delete":
         gate_delete(before, confirm)
-        change = stack.record("text", f"delete {len(before)} chars", rng, text_before=before)
+        change = stack.record(
+            "text", f"delete {len(before)} chars", rng, container=spec.container, text_before=before
+        )
         session.guard(lambda: rng.Delete())
         return _result(change, doc)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
 
 
-def _insert(session, stack, doc, rng, text, position, format_mode, formatting) -> dict:
+def _insert(session, stack, doc, rng, text, position, format_mode, formatting, container) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
     before = str(session.guard(lambda: rng.Text))
-    start = int(session.guard(lambda: rng.Start))
-    end = int(session.guard(lambda: rng.End))
-    if position == "end":
-        session.guard(lambda: rng.InsertAfter(text))
-        inserted = session.guard(lambda: doc.Range(end, int(rng.End)))
-        change = stack.record("text", "insert at end", inserted, text_before="")
-    elif position == "start":
-        session.guard(lambda: rng.InsertBefore(text))
-        inserted = session.guard(lambda: doc.Range(int(rng.Start), start))
-        change = stack.record("text", "insert at start", inserted, text_before="")
+    if position in ("end", "start"):
+        # Insert through a collapsed copy so the recorded range covers the inserted
+        # text alone. Inserting through `rng` itself expands it over the original
+        # text too, and reverting that would delete text the insert never touched.
+        point = session.guard(lambda: rng.Duplicate)
+        session.guard(lambda: point.Collapse(0 if position == "end" else 1))
+        if position == "end":
+            session.guard(lambda: point.InsertAfter(text))
+        else:
+            session.guard(lambda: point.InsertBefore(text))
+        inserted = session.guard(lambda: point.Duplicate)
+        change = stack.record(
+            "text", f"insert at {position}", inserted, container=container, text_before=""
+        )
     elif position == "replace":
-        change = stack.record("text", "insert at replace", rng, text_before=before)
+        change = stack.record("text", "insert at replace", rng, container=container, text_before=before)
         session.guard(lambda: setattr(rng, "Text", text))
+        inserted = session.guard(lambda: rng.Duplicate)
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
-    fresh = session.guard(lambda: doc.Range(start, int(rng.End)))
-    _apply_mode(session, fresh, style_before, format_mode, formatting)
+    _apply_mode(session, inserted, style_before, format_mode, formatting)
     return _result(change, doc, style=style_before)
 
 
-def _replace(session, stack, doc, rng, text, format_mode, formatting) -> dict:
+def _replace(session, stack, doc, rng, text, format_mode, formatting, container) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
     before = str(session.guard(lambda: rng.Text))
-    start = int(session.guard(lambda: rng.Start))
-    change = stack.record("text", "replace", rng, text_before=before)
+    change = stack.record("text", "replace", rng, container=container, text_before=before)
     session.guard(lambda: setattr(rng, "Text", text))
-    fresh = session.guard(lambda: doc.Range(start, int(rng.End)))
+    fresh = session.guard(lambda: rng.Duplicate)
     _apply_mode(session, fresh, style_before, format_mode, formatting)
     return _result(change, doc, style=style_before)
 
@@ -140,7 +145,7 @@ def format_text(
 
     if action == "clear":
         before = _capture(session, rng)
-        change = stack.record("format", "clear formatting", rng, format_before=before)
+        change = stack.record("format", "clear formatting", rng, container=spec.container, format_before=before)
         _clear_formatting(session, rng)
         return _result(change, doc)
 
@@ -149,7 +154,7 @@ def format_text(
             raise InvalidArgument("action='copy_from' needs a source target.")
         src = resolve(session, inspect_spec(source))
         before = _capture(session, rng)
-        change = stack.record("format", "copy formatting", rng, format_before=before)
+        change = stack.record("format", "copy formatting", rng, container=spec.container, format_before=before)
         _copy_formatting(session, rng, src.handle)
         return _result(change, doc)
 
@@ -157,7 +162,7 @@ def format_text(
         if not formatting:
             raise InvalidArgument(f"action={action!r} needs a formatting dict.")
         before = _capture(session, rng)
-        change = stack.record("format", action, rng, format_before=before)
+        change = stack.record("format", action, rng, container=spec.container, format_before=before)
         apply_font(session, rng, formatting)
         return _result(change, doc)
 

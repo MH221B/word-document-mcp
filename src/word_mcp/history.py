@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from word_mcp.errors import InvalidArgument, WordMcpError
+from word_mcp.session import story_range
 
 MAX_DEPTH = 20
 
@@ -17,6 +18,7 @@ class Change:
     description: str
     start: int
     end: int
+    container: str = "body"
     text_before: str = ""
     format_before: dict = field(default_factory=dict)
     reverted: bool = False
@@ -67,7 +69,11 @@ def revert(session, stack: ChangeStack, op_id: int) -> dict:
             requested=op_id,
         )
     doc = session.doc()
-    rng = session.guard(lambda: doc.Range(change.start, change.end))
+    # Offsets are relative to the story the change was made in, so the range is
+    # rebuilt from that story rather than from the body.
+    rng = session.guard(lambda: story_range(doc, change.container).Duplicate)
+    session.guard(lambda: setattr(rng, "Start", change.start))
+    session.guard(lambda: setattr(rng, "End", change.end))
     if change.kind == "text":
         session.guard(lambda: setattr(rng, "Text", change.text_before))
     elif change.kind == "format":

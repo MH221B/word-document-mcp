@@ -125,6 +125,14 @@ constructs with no object model.
 **Watermark.** There is no watermark object model. Target a header range and
 `insert_ooxml` a WordArt fragment.
 
+**Page number in a footer.** Write placeholder text with
+`edit_page_layout("header_footer", side="footer", which="primary", text="NN")`,
+insert the field over it with `edit_fields("insert", target={"text": "NN",
+"container": "footer"}, field="page")`, then prepend the surrounding words with
+`edit_text` at the returned token, because the field insert consumes the text it
+was aimed at. Footer and header offsets are story-relative, so these targets land
+in the footer rather than the body.
+
 **Table of contents and table of figures.** `edit_fields("toc", target={...})` at the
 insertion point, with `toc_options` keys `upper_heading_level` and
 `lower_heading_level`. Collect captions with `edit_fields("table_of_figures",

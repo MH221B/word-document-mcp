@@ -40,7 +40,15 @@ def test_read_and_find(session):
     assert len(found) >= 2, "the sample has two Total paragraphs"
 
 
+def paragraph_text(session, spec):
+    """The whole paragraph holding a match, not just the matched text."""
+    match = inspect.resolve(session, spec)
+    return str(session.guard(lambda: match.handle.Paragraphs(1).Range.Text))
+
+
 def test_insert_then_revert(session):
+    spec = inspect.TargetSpec(text="Total riders")
+    before = paragraph_text(session, spec)
     stack = ChangeStack()
     result = text_ops.edit_text(
         session, stack, inspect.TargetSpec(text="Total riders"), inspect.resolve,
@@ -48,7 +56,30 @@ def test_insert_then_revert(session):
     )
     assert result["operation_id"] == 1
     document_ops.revert_change(session, stack, result["operation_id"])
-    assert "draft" not in inspect.read_range(session, inspect.TargetSpec(text="Total riders"))["text"]
+    # The whole paragraph, so a revert that eats the surrounding text fails here.
+    assert paragraph_text(session, inspect.TargetSpec(text="Total riders")) == before
+
+
+def test_footer_edit_stays_in_its_story(session):
+    """Header and footer offsets are story-relative, so an edit there must land in
+    that story and a revert there must not damage the body."""
+    body_spec = inspect.TargetSpec(text="Overview")
+    body_before = paragraph_text(session, body_spec)
+    structure_ops.edit_page_layout(
+        session, inspect.resolve, action="header_footer",
+        side="footer", which="primary", text="Stage footer",
+    )
+    footer = lambda: str(session.guard(lambda: session.doc().Sections(1).Footers(1).Range.Text))
+    stack = ChangeStack()
+    result = text_ops.edit_text(
+        session, stack, inspect.TargetSpec(text="Stage footer", container="footer"),
+        inspect.resolve, action="insert", text=" draft", position="end",
+    )
+    assert "Stage footer draft" in footer()
+    assert paragraph_text(session, body_spec) == body_before
+    document_ops.revert_change(session, stack, result["operation_id"])
+    assert footer().strip() == "Stage footer"
+    assert paragraph_text(session, body_spec) == body_before
 
 
 def test_style_only_insert_has_no_direct_formatting(session):

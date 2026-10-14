@@ -14,6 +14,7 @@ from pythoncom import com_error
 from word_mcp.errors import (
     DocumentAmbiguous,
     DocumentNotFound,
+    InvalidArgument,
     ProtectedDocument,
     ReadOnlyDocument,
     WordMcpError,
@@ -165,6 +166,25 @@ def require_writable(doc: Any) -> None:
             "The document has editing restrictions enabled.",
             protection_type=int(doc.ProtectionType),
         )
+
+
+def story_range(doc: Any, container: str):
+    """The range a container's text lives in.
+
+    Offsets inside a header or footer range are relative to that story, not to the
+    body, so a range built with doc.Range() lands in the body. Every caller that
+    needs a range inside a container goes through here.
+    """
+    if container == "body":
+        return doc.Content
+    if container == "header":
+        return doc.Sections(1).Headers(1).Range
+    if container == "footer":
+        return doc.Sections(1).Footers(1).Range
+    raise InvalidArgument(
+        f"Container {container!r} is not supported yet.",
+        supported=["body", "header", "footer"],
+    )
 
 
 @contextmanager

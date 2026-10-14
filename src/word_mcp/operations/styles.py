@@ -61,7 +61,7 @@ def manage_style(
         length = int(session.guard(lambda: match.handle.End - match.handle.Start))
         gate_range(length, confirm)
         before = str(session.guard(lambda: match.handle.Style.NameLocal))
-        change = stack.record("format", f"apply style {name}", match.handle, format_before={"Style": before})
+        change = stack.record("format", f"apply style {name}", match.handle, container=spec.container, format_before={"Style": before})
         session.guard(lambda: setattr(match.handle, "Style", name))
         return {"operation_id": change.op_id, "applied": name, "previous": before}
 

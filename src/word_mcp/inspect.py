@@ -13,17 +13,18 @@ from word_mcp.addressing import (
     normalise,
 )
 from word_mcp.errors import InvalidArgument
+from word_mcp.session import story_range
 
 TOKENS = TokenStore()
 WD_OUTLINE_BODY_TEXT = 10
 
 
-def heading_path_of(doc: Any, paragraph_index: int) -> str:
+def heading_path_of(paragraphs: list, paragraph_index: int) -> str:
     """Walk back to the nearest enclosing headings, nearest last."""
     parts: list[tuple[int, str]] = []
     cap = WD_OUTLINE_BODY_TEXT
     for i in range(paragraph_index - 1, -1, -1):
-        para = doc.Paragraphs(i + 1)
+        para = paragraphs[i]
         level = int(para.OutlineLevel)
         if level < cap:
             cap = level
@@ -33,25 +34,32 @@ def heading_path_of(doc: Any, paragraph_index: int) -> str:
     return " > ".join(text for _, text in parts)
 
 
-def paragraph_context(session, doc: Any, rng: Any) -> tuple[int, str, str]:
-    """Paragraph index, heading path, and style for a range."""
-    paragraphs = session.guard(lambda: list(doc.Paragraphs))
+def paragraph_context(session, rng: Any, paragraphs: list) -> tuple[int, str, str]:
+    """Paragraph index, heading path, and style for a range, within its own story."""
     for i, para in enumerate(paragraphs):
         para_range = session.guard(lambda p=para: p.Range)
         if session.guard(lambda r=para_range: r.Start <= rng.Start < r.End):
             style = str(session.guard(lambda p=para: p.Range.Style.NameLocal))
-            return i, heading_path_of(doc, i), style
+            return i, heading_path_of(paragraphs, i), style
     return -1, "", ""
 
 
 def match_from_range(
-    session, doc: Any, handle: Any, paragraph_index: int = -1, container: str = "body"
+    session,
+    handle: Any,
+    paragraphs: list,
+    paragraph_index: int = -1,
+    container: str = "body",
 ) -> Match:
-    """Wrap a Word range as a Match and register an anchor token for it."""
+    """Wrap a Word range as a Match and register an anchor token for it.
+
+    `paragraphs` is the paragraph list of the range's own story, so headings and
+    indices stay correct inside a header or footer.
+    """
     if paragraph_index < 0:
-        paragraph_index, path, style_name = paragraph_context(session, doc, handle)
+        paragraph_index, path, style_name = paragraph_context(session, handle, paragraphs)
     else:
-        path = heading_path_of(doc, paragraph_index)
+        path = heading_path_of(paragraphs, paragraph_index)
         style_name = str(session.guard(lambda: handle.Style.NameLocal))
     text = str(session.guard(lambda: handle.Text)).replace("\r", "").replace("\x07", "")
     match = Match(
@@ -75,7 +83,7 @@ def document_outline(session, depth: int = 9) -> dict:
     for i, para in enumerate(paragraphs):
         level = int(session.guard(lambda p=para: p.OutlineLevel))
         if level < WD_OUTLINE_BODY_TEXT and level <= depth:
-            match = match_from_range(session, doc, para.Range, i)
+            match = match_from_range(session, para.Range, paragraphs, i)
             own_path = " > ".join([p for p in [match.heading_path, match.text] if p])
             headings.append({"level": level, "heading_path": own_path, **match.describe()})
     tables = []
@@ -181,20 +189,17 @@ def get_formatting(session, spec) -> dict:
 
 def search_range(session, doc: Any, spec: TargetSpec):
     """The range a search runs against."""
-    if spec.container == "body":
-        return doc.Content
-    if spec.container == "header":
-        return doc.Sections(1).Headers(1).Range
-    if spec.container == "footer":
-        return doc.Sections(1).Footers(1).Range
-    raise InvalidArgument(f"Container {spec.container!r} is not supported yet.")
+    return story_range(doc, spec.container)
 
 
 def find_all(session, spec: TargetSpec) -> list[Match]:
     """Every match, without the ambiguity failure. Used by find_text."""
     doc = session.doc()
-    handle = search_range(session, doc, spec)
-    find = session.guard(lambda: handle.Find)
+    host = search_range(session, doc, spec)
+    # Offsets in a found range are relative to its own story, so the paragraph
+    # list has to come from that story too.
+    paragraphs = session.guard(lambda: list(host.Paragraphs))
+    find = session.guard(lambda: host.Find)
     session.guard(lambda: setattr(find, "Text", spec.text or ""))
     session.guard(lambda: setattr(find, "Forward", True))
     session.guard(lambda: setattr(find, "Wrap", 0))  # wdFindStop
@@ -204,8 +209,11 @@ def find_all(session, spec: TargetSpec) -> list[Match]:
         session.guard(lambda: setattr(find, "Style", spec.style))
     found: list[Match] = []
     while session.guard(lambda: bool(find.Execute())):
-        rng = session.guard(lambda: doc.Range(find.Parent.Start, find.Parent.End))
-        found.append(match_from_range(session, doc, rng, container=spec.container))
+        # Word redefines the searched range to the match, so Duplicate it before
+        # the next Execute moves it on. doc.Range() would map these offsets into
+        # the body and lose the match inside a header or footer.
+        rng = session.guard(lambda: find.Parent.Duplicate)
+        found.append(match_from_range(session, rng, paragraphs, container=spec.container))
         if len(found) >= MAX_CANDIDATES:
             break
     return found
