@@ -9,10 +9,13 @@ from mcp.server.fastmcp import FastMCP
 
 from word_mcp import inspect
 from word_mcp.errors import WordMcpError
+from word_mcp.history import ChangeStack
+from word_mcp.operations import text as text_ops
 from word_mcp.session import ComWordSession
 
 mcp = FastMCP("word")
 SESSION = ComWordSession()
+HISTORY = ChangeStack()
 
 
 def tool_error(exc: WordMcpError) -> str:
@@ -109,3 +112,23 @@ def inspect_document() -> str:
 def get_ooxml(target: dict) -> str:
     """WordprocessingML for a target, for detailed inspection or copying."""
     return run(lambda: inspect.get_ooxml(SESSION, inspect.TargetSpec(**target)))
+
+
+@mcp.tool()
+def edit_text(
+    target: dict,
+    action: str,
+    text: str = "",
+    position: str = "end",
+    format_mode: str = "inherit",
+    formatting: dict | None = None,
+    confirm: bool = False,
+) -> str:
+    """Insert, replace, or delete text. format_mode is inherit, style_only, or explicit."""
+    def go():
+        return text_ops.edit_text(
+            SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
+            action=action, text=text, position=position, format_mode=format_mode,
+            formatting=formatting, confirm=confirm,
+        )
+    return run(go)
