@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from mcp.server.fastmcp import FastMCP
 
+from word_mcp import inspect
 from word_mcp.errors import WordMcpError
 from word_mcp.session import ComWordSession
 
@@ -50,3 +51,9 @@ def disconnect_document() -> str:
         SESSION.unpin()
         return {"pinned": None}
     return run(go)
+
+
+@mcp.tool()
+def document_outline(depth: int = 9) -> str:
+    """Headings, tables, sections, and images, each with an anchor token."""
+    return run(lambda: inspect.document_outline(SESSION, depth))
