@@ -112,8 +112,11 @@ def find_text(
             wildcards=wildcards, match_case=match_case,
         )
         norm = inspect.normalise(text)
+        # The heading_path filter runs after the search, so only bound the walk
+        # when there is no filter to apply.
+        stop = None if heading_path else limit
         out = []
-        for match in inspect.find_all(SESSION, spec):
+        for match in inspect.find_all(SESSION, spec, stop_after=stop):
             if heading_path and heading_path not in match.heading_path:
                 continue
             out.append({**match.describe(), "matched": norm in inspect.normalise(match.text)})

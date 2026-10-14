@@ -195,8 +195,13 @@ def search_range(session, doc: Any, spec: TargetSpec):
     return story_range(doc, spec.container)
 
 
-def find_all(session, spec: TargetSpec) -> list[Match]:
-    """Every match, without the ambiguity failure. Used by find_text."""
+def find_all(session, spec: TargetSpec, stop_after: int | None = None) -> list[Match]:
+    """Every match, without the ambiguity failure. Used by find_text.
+
+    `stop_after` bounds the walk. Word redefines the searched range on every
+    Execute and describing one match costs ~120 ms, so a caller that wants the
+    first few matches must not pay for the rest. The scan itself is ~0.25 s.
+    """
     doc = session.doc()
     host = search_range(session, doc, spec)
     # A header or footer has its own offset space, so it keeps its own paragraph
@@ -218,6 +223,8 @@ def find_all(session, spec: TargetSpec) -> list[Match]:
         # the body and lose the match inside a header or footer.
         rng = session.guard(lambda: find.Parent.Duplicate)
         found.append(match_from_range(session, rng, index, paragraphs, spec.container))
+        if stop_after is not None and len(found) >= stop_after:
+            break
         if len(found) >= MAX_CANDIDATES:
             break
     return found
@@ -228,7 +235,14 @@ def resolve(session, spec: TargetSpec) -> Match:
     if spec.token:
         return TOKENS.get(spec.token)
     if spec.text or spec.style or spec.heading_path:
-        found = find_all(session, spec)
+        # A heading_path filter runs after the search, so bounding the walk would
+        # bound the wrong list. With an explicit occurrence, occurrence+1 matches
+        # answer the request, and when the occurrence is out of range the loop
+        # ends by itself so the reported count is still exact.
+        bound = None
+        if not spec.heading_path and spec.occurrence is not None:
+            bound = spec.occurrence + 1
+        found = find_all(session, spec, stop_after=bound)
         if spec.heading_path:
             narrowed = [m for m in found if spec.heading_path in m.heading_path]
             found = narrowed or found
