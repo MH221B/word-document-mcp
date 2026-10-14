@@ -127,9 +127,9 @@ def find_text(
 
 
 @mcp.tool()
-def inspect_document() -> str:
+def inspect_document(refresh: bool = False) -> str:
     """Styles, comments, revisions, bookmarks, content controls, template, protection."""
-    return run(lambda: inspect.inspect_document(SESSION))
+    return run(lambda: inspect.inspect_document(SESSION, refresh))
 
 
 @mcp.tool()

@@ -58,6 +58,7 @@ class ComWordSession:
         self._doc: Any = None
         self._info: DocumentInfo | None = None
         self._index: StructureIndex | None = None
+        self._inventory: dict | None = None
 
     # -- connection ---------------------------------------------------------
 
@@ -176,12 +177,14 @@ class ComWordSession:
         self._doc = matches[0][1]
         self._info = self._info_for(self._doc)
         self._index = None
+        self._inventory = None
         return self._info
 
     def unpin(self) -> None:
         self._doc = None
         self._info = None
         self._index = None
+        self._inventory = None
 
     def pinned(self) -> DocumentInfo | None:
         return self._info
@@ -214,8 +217,17 @@ class ComWordSession:
         return self._index
 
     def invalidate_index(self) -> None:
-        """Drop the cached index; the next index() rebuilds it."""
+        """Drop the cached index and inventory; the next read rebuilds them."""
         self._index = None
+        self._inventory = None
+
+    def inventory(self) -> dict | None:
+        """The cached document inventory, or None when it must be re-read."""
+        return self._inventory
+
+    def set_inventory(self, payload: dict | None) -> None:
+        """Cache the inventory, or clear it with None."""
+        self._inventory = payload
 
     # -- guard --------------------------------------------------------------
 

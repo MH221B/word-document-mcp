@@ -12,6 +12,7 @@ from word_mcp.addressing import (
     choose,
     normalise,
 )
+from word_mcp.comfast import STYLE
 from word_mcp.errors import InvalidArgument
 from word_mcp.session import story_range
 
@@ -265,14 +266,30 @@ def resolve(session, spec: TargetSpec) -> Match:
     raise InvalidArgument("Give a token, or text, style, or heading_path.")
 
 
-def inspect_document(session) -> dict:
+def inspect_document(session, refresh: bool = False) -> dict:
+    """Styles, comments, revisions, bookmarks, content controls, template, protection.
+
+    Read once per document version: the styles scan alone is ~2-3 s. `refresh`
+    re-reads it after a change made by hand in Word.
+    """
+    if refresh:
+        session.set_inventory(None)
+    cached = session.inventory()
+    if cached is not None:
+        return cached
+    payload = _read_inventory(session)
+    session.set_inventory(payload)
+    return payload
+
+
+def _read_inventory(session) -> dict:
     doc = session.doc()
     styles = [
         {
-            "name": str(session.guard(lambda s=style: s.NameLocal)),
-            "built_in": bool(session.guard(lambda s=style: s.BuiltIn)),
-            "type": int(session.guard(lambda s=style: s.Type)),
-            "in_use": bool(session.guard(lambda s=style: s.InUse)),
+            "name": str(session.guard(lambda s=style: STYLE.get(s, "NameLocal"))),
+            "built_in": bool(session.guard(lambda s=style: STYLE.get(s, "BuiltIn"))),
+            "type": int(session.guard(lambda s=style: STYLE.get(s, "Type"))),
+            "in_use": bool(session.guard(lambda s=style: STYLE.get(s, "InUse"))),
         }
         for style in session.guard(lambda: list(doc.Styles))
     ]
