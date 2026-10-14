@@ -76,48 +76,40 @@ def match_from_range(
     return match
 
 
-def document_outline(session, depth: int = 9) -> dict:
+def document_outline(session, depth: int = 9, refresh: bool = False) -> dict:
+    """Headings, tables, sections, and images, each with an anchor token.
+
+    Structure comes from the session's cached index, so a second call on an
+    unchanged document costs almost nothing. `refresh` forces a rebuild, for a
+    structural change made by hand in Word.
+    """
+    if refresh:
+        session.invalidate_index()
     doc = session.doc()
-    paragraphs = session.guard(lambda: list(doc.Paragraphs))
+    index = session.index()
     headings = []
-    for i, para in enumerate(paragraphs):
-        level = int(session.guard(lambda p=para: p.OutlineLevel))
-        if level < WD_OUTLINE_BODY_TEXT and level <= depth:
-            match = match_from_range(session, para.Range, paragraphs, i)
-            own_path = " > ".join([p for p in [match.heading_path, match.text] if p])
-            headings.append({"level": level, "heading_path": own_path, **match.describe()})
-    tables = []
-    for t_index, table in enumerate(session.guard(lambda: list(doc.Tables)), start=1):
-        rows = int(session.guard(lambda t=table: t.Rows.Count))
-        cols = int(session.guard(lambda t=table: t.Columns.Count))
-        tables.append({"table": t_index, "rows": rows, "columns": cols})
-    sections = []
-    for s_index, section in enumerate(session.guard(lambda: list(doc.Sections)), start=1):
-        sections.append(
-            {
-                "section": s_index,
-                "page_width": float(session.guard(lambda s=section: s.PageSetup.PageWidth)),
-                "page_height": float(session.guard(lambda s=section: s.PageSetup.PageHeight)),
-                "orientation": int(session.guard(lambda s=section: s.PageSetup.Orientation)),
-            }
+    for heading in index.headings:
+        if heading.level > depth:
+            continue
+        handle = session.guard(lambda h=heading: doc.Range(h.start, h.end))
+        match = Match(
+            token="",
+            text=heading.text,
+            paragraph_index=index.paragraph_index(heading.start),
+            heading_path=heading.path,
+            style=heading.style,
+            container="body",
+            snippet=heading.text[:80],
+            handle=handle,
         )
-    images = []
-    for i_index, shape in enumerate(session.guard(lambda: list(doc.InlineShapes)), start=1):
-        images.append(
-            {
-                "inline_shape": i_index,
-                "type": int(session.guard(lambda s=shape: s.Type)),
-                "caption_paragraph": session.guard(
-                    lambda s=shape: s.Range.Paragraphs(1).Range.Text.strip()
-                ),
-            }
-        )
+        TOKENS.add(match)
+        headings.append({"level": heading.level, **match.describe()})
     return {
         "document": session.pinned().__dict__,
         "headings": headings,
-        "tables": tables,
-        "sections": sections,
-        "images": images,
+        "tables": index.tables,
+        "sections": index.sections,
+        "images": index.images,
     }
 
 

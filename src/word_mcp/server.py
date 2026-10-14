@@ -63,9 +63,9 @@ def disconnect_document() -> str:
 
 
 @mcp.tool()
-def document_outline(depth: int = 9) -> str:
+def document_outline(depth: int = 9, refresh: bool = False) -> str:
     """Headings, tables, sections, and images, each with an anchor token."""
-    return run(lambda: inspect.document_outline(SESSION, depth))
+    return run(lambda: inspect.document_outline(SESSION, depth, refresh))
 
 
 @mcp.tool()
