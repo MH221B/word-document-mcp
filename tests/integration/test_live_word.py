@@ -62,15 +62,22 @@ def test_outline_reports_real_ancestors(session):
     assert len(outline["sections"]) == 1
 
 
-def test_index_is_reused_until_the_document_changes(session):
+def test_an_edit_patches_the_index_instead_of_rebuilding(session):
     first = session.index()
-    assert session.index() is first, "an unchanged document reuses the index"
     stack = ChangeStack()
+    # The MCP tools wrap every mutation in begin_change / settle_index; do the
+    # same here so the patch path runs rather than a plain fingerprint rebuild.
+    session.begin_change()
     result = text_ops.edit_text(
         session, stack, inspect.TargetSpec(text="Total riders"), inspect.resolve,
         action="insert", text=" and horses", position="end",
     )
-    assert session.index() is not first, "an edit forces a rebuild"
+    session.settle_index()
+    assert session.index() is first, "a describable edit patches the index"
+    # The patch must agree with a fresh read of the document.
+    outline = inspect.document_outline(session)
+    assert [h["text"] for h in outline["headings"]] == ["Overview", "Risks"]
+    assert session.index().fingerprint == session.guard(lambda: session.doc().Content.End)
     document_ops.revert_change(session, stack, result["operation_id"])
 
 
@@ -149,6 +156,66 @@ def test_caption_lands_outside_the_table(session):
     )
     assert "Integration caption" in caption["text"]
     assert "Integration caption" not in session.doc().Tables(1).Range.Text
+
+
+def test_a_structural_edit_still_rebuilds(session):
+    first = session.index()
+    stack = ChangeStack()
+    session.begin_change()
+    structure_ops.edit_table(
+        session, stack, inspect.resolve, action="insert",
+        spec=inspect.TargetSpec(text="First item"), table_index=1,
+        rows=1, columns=1, values=[["x"]],
+    )
+    session.settle_index()
+    assert session.index() is not first, "a table insert cannot be described"
+
+
+def test_offsets_survive_an_edit_and_a_delete(session):
+    """A patched index must report the same paragraph as a fresh one would."""
+    first = session.index()
+    stack = ChangeStack()
+    session.begin_change()
+    inserted = text_ops.edit_text(
+        session, stack, inspect.TargetSpec(text="Total risks"), inspect.resolve,
+        action="insert", text=" (checked)", position="end",
+    )
+    session.settle_index()
+    assert session.index() is first, "the insert patched the index"
+    after_insert = inspect.resolve(session, inspect.TargetSpec(text="Total risks"))
+    paragraph = str(session.guard(lambda: after_insert.handle.Paragraphs(1).Range.Text))
+    assert "(checked)" in paragraph
+    assert inspect.resolve(session, inspect.TargetSpec(text="Second item")).paragraph_index > 0
+    document_ops.revert_change(session, stack, inserted["operation_id"])
+
+
+def test_find_text_limit_bounds_the_work_and_the_results(session):
+    every = inspect.find_all(session, inspect.TargetSpec(text="Total"))
+    assert len(every) >= 2
+    first = inspect.find_all(session, inspect.TargetSpec(text="Total"), stop_after=1)
+    assert len(first) == 1
+    assert first[0].text == every[0].text
+
+
+def test_inventory_is_cached_until_the_document_changes(session):
+    assert session.inventory() is None, "not read yet"
+    first = inspect.inspect_document(session)
+    assert session.inventory() is first
+    assert inspect.inspect_document(session) is first
+    assert inspect.inspect_document(session, refresh=True) is not first
+
+
+def test_caption_above_the_anchor_is_found(session):
+    stack = ChangeStack()
+    structure_ops.edit_table(
+        session, stack, inspect.resolve, action="insert", spec=inspect.TargetSpec(text="Second item"),
+        rows=2, columns=2, values=[["a", "b"], ["c", "d"]],
+    )
+    caption = structure_ops.edit_table(
+        session, stack, inspect.resolve, action="caption", table_index=1,
+        title="Above caption", position="above",
+    )
+    assert "Above caption" in caption["text"], "the caption above the table is located"
 
 
 def test_saved_copy_carries_the_text(tmp_path, session):

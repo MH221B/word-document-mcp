@@ -66,3 +66,17 @@ def test_token_with_deleted_range_is_stale():
     match.handle.Start, match.handle.End = 5, 1
     with pytest.raises(StaleToken):
         store.get(token)
+
+
+def test_token_store_evicts_the_oldest():
+    from word_mcp.addressing import Match, TokenStore
+
+    store = TokenStore(limit=3)
+    for i in range(5):
+        store.add(
+            Match(
+                token=f"t{i}", text=str(i), paragraph_index=i, heading_path="",
+                style="", container="body", snippet="", handle=None,
+            )
+        )
+    assert sorted(store._items) == ["t2", "t3", "t4"]
