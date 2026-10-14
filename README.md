@@ -62,14 +62,17 @@ executed in this environment, with the behaviour to expect.
 - A co-authored document with another author holding a lock.
   Expected: the tool reports a conflict rather than retrying forever. Not run:
   no co-authored document with a second author lock was available.
-- Read structure is cached per document version. On a 1,616-paragraph, 42-table
-  document the first `document_outline` takes about 15 seconds and
-  every later call on the unchanged document about 0.2 seconds; `find_text`
-  drops from about two minutes to about 3 seconds for 47 matches, most of which
-  is Word's own per-match search. The cache is dropped by any edit tool, and
-  rebuilt when the document's character count changes. A restyle made by hand in
-  Word is invisible to that check: pass `document_outline(refresh=true)` to force
-  a rebuild.
+- Reads are cached per document version. On a 1,616-paragraph, 42-table document
+  the first `document_outline` takes about 23 seconds and every later call on the
+  unchanged document about 0.006 seconds; the first `inspect_document` takes about
+  3.4 seconds and a repeat about 0.002 seconds. `find_text` pays Word's scan plus
+  about 120 ms per match it returns, so `limit=5` takes about 0.7 seconds and
+  `limit=20` about 1.8 seconds rather than visiting all 47 matches. An edit that
+  can describe what it changed patches the cached index in place, so the read
+  after an edit is warm instead of a full rebuild; anything it cannot describe
+  drops the cache, which is rebuilt when the document's character count changes.
+  A restyle made by hand in Word is invisible to that check: pass
+  `document_outline(refresh=true)` to force a rebuild.
 
 ## Client registration check
 

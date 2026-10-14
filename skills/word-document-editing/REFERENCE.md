@@ -26,12 +26,17 @@ same level is not an ancestor. So a match under a level-2 heading reports
 
 `find_text` collapses whitespace and folds curly quotes to straight when it
 decides whether a candidate `matched`; the Word search itself uses the text as
-given. Searches stop at 50 candidates. `footnote`, `endnote`, and `comment`
+given. Searches stop at 50 candidates. `limit` bounds the search itself, not just
+the returned list: the walk stops once that many matches are collected, and is
+dropped only when a `heading_path` filter runs after the search.
+`footnote`, `endnote`, and `comment`
 containers are accepted by the spec but not implemented in search, which reports
 `invalid_argument`.
 
 There is no paragraph-index addressing. Use the tokens from `document_outline`
-or `find_text`.
+or `find_text`. A heading's token stays valid across calls until the document
+changes, because `document_outline` reuses the same tokens while the structure is
+unchanged.
 
 ## Connection
 
@@ -49,7 +54,7 @@ or `find_text`.
 | `read_range` | `target`, `include_formatting=False` | Text, and optionally the formatting block. |
 | `get_formatting` | `target` | Paragraph and character style, font and paragraph snapshots, and `deviations_from_style`. |
 | `find_text` | `text`, `container`, `heading_path`, `style`, `wildcards`, `match_case`, `limit=20` | Candidates with context. Never fails on ambiguity. |
-| `inspect_document` | none | Template path, protection, track-changes state, styles, comments, revisions, bookmarks, content controls, properties. |
+| `inspect_document` | `refresh=false` | Template path, protection, track-changes state, styles, comments, revisions, bookmarks, content controls, properties. Read once per document version and cached, so a repeat call is nearly free; `refresh=true` re-reads it after a change made by hand in Word. |
 | `get_ooxml` | `target` | Flat WordprocessingML for the range. |
 
 `deviations_from_style` lists only the properties where direct formatting differs
