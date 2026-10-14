@@ -100,3 +100,84 @@ def _result(change, doc, **extra) -> dict:
         **extra,
     }
     return json.loads(json.dumps(payload, default=str))
+
+
+WD_UNDEFINED = 9999999
+
+
+def format_text(
+    session,
+    stack: ChangeStack,
+    spec,
+    resolve,
+    action: str,
+    formatting: dict | None = None,
+    source: dict | None = None,
+    confirm: bool = False,
+) -> dict:
+    doc = session.doc()
+    require_writable(doc)
+    match = resolve(session, spec)
+    rng = match.handle
+    length = int(session.guard(lambda: rng.End - rng.Start))
+    gate_range(length, confirm)
+
+    if action == "clear":
+        before = _capture(session, rng)
+        change = stack.record("format", "clear formatting", rng, format_before=before)
+        session.guard(lambda: rng.ClearFormatting())
+        return _result(change, doc)
+
+    if action == "copy_from":
+        if not source:
+            raise InvalidArgument("action='copy_from' needs a source target.")
+        src = resolve(session, inspect_spec(source))
+        before = _capture(session, rng)
+        change = stack.record("format", "copy formatting", rng, format_before=before)
+        _copy_formatting(session, rng, src.handle)
+        return _result(change, doc)
+
+    if action in ("character", "paragraph"):
+        if not formatting:
+            raise InvalidArgument(f"action={action!r} needs a formatting dict.")
+        before = _capture(session, rng)
+        change = stack.record("format", action, rng, format_before=before)
+        apply_font(session, rng, formatting)
+        return _result(change, doc)
+
+    raise InvalidArgument(
+        f"Unknown action {action!r}.", allowed=["character", "paragraph", "clear", "copy_from"]
+    )
+
+
+def inspect_spec(target: dict):
+    from word_mcp.addressing import TargetSpec
+
+    return TargetSpec(**target)
+
+
+def _copy_formatting(session, rng, source_handle) -> None:
+    """Copy formatting only. FormattedText would copy the text along with it."""
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+
+    source_props = _capture(session, source_handle)
+    apply_font(session, rng, {k: v for k, v in source_props.items() if k in FONT_PROPS})
+    for prop, value in source_props.items():
+        if prop in PARA_PROPS:
+            session.guard(lambda p=prop, v=value: setattr(rng.ParagraphFormat, p, v))
+
+
+def _capture(session, rng) -> dict:
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+
+    captured = {}
+    for prop in FONT_PROPS + PARA_PROPS:
+        target = rng.Font if prop in FONT_PROPS else rng.ParagraphFormat
+        try:
+            value = session.guard(lambda t=target, p=prop: getattr(t, p))
+        except Exception:
+            continue
+        if value == WD_UNDEFINED:
+            continue
+        captured[prop] = value
+    return captured

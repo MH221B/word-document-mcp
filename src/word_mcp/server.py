@@ -132,3 +132,20 @@ def edit_text(
             formatting=formatting, confirm=confirm,
         )
     return run(go)
+
+
+@mcp.tool()
+def format_text(
+    target: dict,
+    action: str,
+    formatting: dict | None = None,
+    source: dict | None = None,
+    confirm: bool = False,
+) -> str:
+    """Character, paragraph, clear, or copy-from formatting for a target."""
+    def go():
+        return text_ops.format_text(
+            SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
+            action=action, formatting=formatting, source=source, confirm=confirm,
+        )
+    return run(go)
