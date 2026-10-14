@@ -16,22 +16,28 @@ from word_mcp.errors import InvalidArgument
 from word_mcp.session import story_range
 
 TOKENS = TokenStore()
-WD_OUTLINE_BODY_TEXT = 10
 
 
 def heading_path_of(paragraphs: list, paragraph_index: int) -> str:
-    """Walk back to the nearest enclosing headings, nearest last."""
-    parts: list[tuple[int, str]] = []
-    cap = WD_OUTLINE_BODY_TEXT
+    """Walk back to the nearest enclosing headings, nearest last.
+
+    Ancestors are headings with strictly smaller outline levels. A previous
+    sibling at the same level is not an ancestor, so the walk starts from the
+    described paragraph's own level rather than from body text.
+    """
+    if paragraph_index <= 0:
+        return ""
+    cap = int(paragraphs[paragraph_index].OutlineLevel)
+    parts: list[str] = []
     for i in range(paragraph_index - 1, -1, -1):
         para = paragraphs[i]
         level = int(para.OutlineLevel)
         if level < cap:
             cap = level
-            parts.insert(0, (level, para.Range.Text.strip()))
+            parts.insert(0, para.Range.Text.strip())
             if level == 1:
                 break
-    return " > ".join(text for _, text in parts)
+    return " > ".join(parts)
 
 
 def paragraph_context(session, rng: Any, paragraphs: list) -> tuple[int, str, str]:
@@ -47,27 +53,28 @@ def paragraph_context(session, rng: Any, paragraphs: list) -> tuple[int, str, st
 def match_from_range(
     session,
     handle: Any,
+    index: Any,
     paragraphs: list,
-    paragraph_index: int = -1,
     container: str = "body",
 ) -> Match:
     """Wrap a Word range as a Match and register an anchor token for it.
 
-    `paragraphs` is the paragraph list of the range's own story, so headings and
-    indices stay correct inside a header or footer.
+    Body context comes from the structure index. A header or footer has its own
+    offset space, so it is scanned within its own story instead.
     """
-    if paragraph_index < 0:
-        paragraph_index, path, style_name = paragraph_context(session, handle, paragraphs)
+    if index is not None:
+        offset = session.guard(lambda: handle.Start)
+        paragraph_index = index.paragraph_index(offset)
+        path = index.heading_path(offset)
     else:
-        path = heading_path_of(paragraphs, paragraph_index)
-        style_name = str(session.guard(lambda: handle.Style.NameLocal))
+        paragraph_index, path, _ = paragraph_context(session, handle, paragraphs)
     text = str(session.guard(lambda: handle.Text)).replace("\r", "").replace("\x07", "")
     match = Match(
         token="",
         text=text,
         paragraph_index=paragraph_index,
         heading_path=path,
-        style=style_name,
+        style=str(session.guard(lambda: handle.Style.NameLocal)),
         container=container,
         snippet=text[:80],
         handle=handle,
@@ -188,9 +195,10 @@ def find_all(session, spec: TargetSpec) -> list[Match]:
     """Every match, without the ambiguity failure. Used by find_text."""
     doc = session.doc()
     host = search_range(session, doc, spec)
-    # Offsets in a found range are relative to its own story, so the paragraph
-    # list has to come from that story too.
-    paragraphs = session.guard(lambda: list(host.Paragraphs))
+    # A header or footer has its own offset space, so it keeps its own paragraph
+    # list; the body answers from the index instead of enumerating paragraphs.
+    index = session.index() if spec.container == "body" else None
+    paragraphs = [] if index is not None else session.guard(lambda: list(host.Paragraphs))
     find = session.guard(lambda: host.Find)
     session.guard(lambda: setattr(find, "Text", spec.text or ""))
     session.guard(lambda: setattr(find, "Forward", True))
@@ -205,7 +213,7 @@ def find_all(session, spec: TargetSpec) -> list[Match]:
         # the next Execute moves it on. doc.Range() would map these offsets into
         # the body and lose the match inside a header or footer.
         rng = session.guard(lambda: find.Parent.Duplicate)
-        found.append(match_from_range(session, rng, paragraphs, container=spec.container))
+        found.append(match_from_range(session, rng, index, paragraphs, spec.container))
         if len(found) >= MAX_CANDIDATES:
             break
     return found
