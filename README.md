@@ -10,11 +10,23 @@ on Windows. See `docs/superpowers/specs/2026-10-14-word-document-mcp-design.md`.
 
 ## Register with an MCP client
 
+OpenCode reads `mcp` entries from its config, global at
+`~/.config/opencode/opencode.jsonc` or per project:
+
     {
-      "mcpServers": {
-        "word": { "command": "uv", "args": ["run", "--directory", "D:/word-document-mcp", "word-mcp"] }
+      "mcp": {
+        "word": {
+          "type": "local",
+          "command": ["D:/word-document-mcp/.venv/Scripts/python.exe", "-m", "word_mcp"],
+          "enabled": true
+        }
       }
     }
+
+The venv's Python starts the server with no dependency resolution at launch. To
+have the client manage the environment instead, use
+`["uv", "run", "--directory", "D:/word-document-mcp", "word-mcp"]`, which resolves
+the project on every start.
 
 Word must be running with the target document open, in the same user session.
 
