@@ -1,7 +1,7 @@
 # word-mcp
 
 MCP server that reads and edits the Word document you have open in Word desktop
-on Windows. See `docs/superpowers/specs/2026-10-14-word-document-mcp-design.md`.
+on Windows.
 
 ## Setup
 
@@ -47,8 +47,8 @@ reopen `samples/plain.docx`.
 
 ## Known behaviour
 
-Manual checks from the plan. These need a human at the keyboard, so they are
-recorded as not executed in this environment, with the behaviour to expect.
+Manual checks. These need a human at the keyboard, so they are recorded as not
+executed in this environment, with the behaviour to expect.
 
 - Modal dialog open in Word (for example File > Options) while a tool is called.
   Expected: a `word_busy` error naming the dialog after the ~10s call timeout,
