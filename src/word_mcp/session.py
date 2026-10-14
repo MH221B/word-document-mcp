@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol, TypeVar
 
@@ -164,3 +165,21 @@ def require_writable(doc: Any) -> None:
             "The document has editing restrictions enabled.",
             protection_type=int(doc.ProtectionType),
         )
+
+
+@contextmanager
+def quiet_batch(app: Any, session: "ComWordSession"):
+    """Suppress alerts and screen updating for one batch, then restore them.
+
+    A modal dialog cannot be dismissed by a background process, so leaving these
+    set would hide the problem rather than fix it.
+    """
+    prev_alerts = app.DisplayAlerts
+    prev_updating = app.ScreenUpdating
+    session.guard(lambda: setattr(app, "DisplayAlerts", 0))  # wdAlertsNone
+    session.guard(lambda: setattr(app, "ScreenUpdating", False))
+    try:
+        yield
+    finally:
+        session.guard(lambda: setattr(app, "DisplayAlerts", prev_alerts))
+        session.guard(lambda: setattr(app, "ScreenUpdating", prev_updating))
