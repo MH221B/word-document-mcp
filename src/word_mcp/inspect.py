@@ -83,6 +83,29 @@ def match_from_range(
     return match
 
 
+def _heading_match(index, heading, handle, token: str = "") -> Match:
+    """A heading's result, described from live index data."""
+    return Match(
+        token=token,
+        text=heading.text,
+        paragraph_index=index.paragraph_index(heading.start),
+        heading_path=heading.path,
+        style=heading.style,
+        container="body",
+        snippet=heading.text[:80],
+        handle=handle,
+    )
+
+
+def _mint_anchors(session, doc, index) -> list[tuple[str, Any]]:
+    """One token and one live range per heading, minted once per index."""
+    out: list[tuple[str, Any]] = []
+    for heading in index.headings:
+        handle = session.guard(lambda h=heading: doc.Range(h.start, h.end))
+        out.append((TOKENS.add(_heading_match(index, heading, handle)), handle))
+    return out
+
+
 def document_outline(session, depth: int = 9, refresh: bool = False) -> dict:
     """Headings, tables, sections, and images, each with an anchor token.
 
@@ -94,23 +117,15 @@ def document_outline(session, depth: int = 9, refresh: bool = False) -> dict:
         session.invalidate_index()
     doc = session.doc()
     index = session.index()
+    if index.anchors is None or len(index.anchors) != len(index.headings):
+        index.anchors = _mint_anchors(session, doc, index)
     headings = []
-    for heading in index.headings:
+    for heading, (token, handle) in zip(index.headings, index.anchors):
         if heading.level > depth:
             continue
-        handle = session.guard(lambda h=heading: doc.Range(h.start, h.end))
-        match = Match(
-            token="",
-            text=heading.text,
-            paragraph_index=index.paragraph_index(heading.start),
-            heading_path=heading.path,
-            style=heading.style,
-            container="body",
-            snippet=heading.text[:80],
-            handle=handle,
+        headings.append(
+            {"level": heading.level, **_heading_match(index, heading, handle, token).describe()}
         )
-        TOKENS.add(match)
-        headings.append({"level": heading.level, **match.describe()})
     return {
         "document": session.pinned().__dict__,
         "headings": headings,

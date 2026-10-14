@@ -44,6 +44,9 @@ class StructureIndex:
         self.tables = tables
         self.sections = sections
         self.images = images
+        # Minted on the first document_outline: one (token, handle) per heading.
+        # Live Word ranges move with the document, so a patched index keeps them.
+        self.anchors: list[tuple[str, Any]] | None = None
 
     @classmethod
     def build(cls, session: Any, fingerprint: int) -> "StructureIndex":
