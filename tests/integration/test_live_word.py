@@ -49,6 +49,31 @@ def test_read_and_find(session):
     assert len(found) >= 2, "the sample has two Total paragraphs"
 
 
+def test_outline_reports_real_ancestors(session):
+    outline = inspect.document_outline(session)
+    got = [
+        (h["text"], h["level"], h["paragraph_index"], h["heading_path"])
+        for h in outline["headings"]
+    ]
+    # Both headings are level 1, so neither has an ancestor. The old walk
+    # reported "Overview" as the parent of "Risks".
+    assert got == [("Overview", 1, 0, ""), ("Risks", 1, 3, "")]
+    assert len(outline["images"]) == 1
+    assert len(outline["sections"]) == 1
+
+
+def test_index_is_reused_until_the_document_changes(session):
+    first = session.index()
+    assert session.index() is first, "an unchanged document reuses the index"
+    stack = ChangeStack()
+    result = text_ops.edit_text(
+        session, stack, inspect.TargetSpec(text="Total riders"), inspect.resolve,
+        action="insert", text=" and horses", position="end",
+    )
+    assert session.index() is not first, "an edit forces a rebuild"
+    document_ops.revert_change(session, stack, result["operation_id"])
+
+
 def paragraph_text(session, spec):
     """The whole paragraph holding a match, not just the matched text."""
     match = inspect.resolve(session, spec)
@@ -89,6 +114,16 @@ def test_footer_edit_stays_in_its_story(session):
     document_ops.revert_change(session, stack, result["operation_id"])
     assert footer().strip() == "Stage footer"
     assert paragraph_text(session, body_spec) == body_before
+
+
+def test_footer_matches_keep_their_own_story(session):
+    count = session.guard(lambda: session.doc().Sections(1).Footers(1).Range.Paragraphs.Count)
+    matches = inspect.find_all(
+        session, inspect.TargetSpec(text="Stage footer", container="footer")
+    )
+    assert matches, "the footer written by the earlier test still holds text"
+    assert 0 <= matches[0].paragraph_index < count
+    assert matches[0].container == "footer"
 
 
 def test_style_only_insert_has_no_direct_formatting(session):
