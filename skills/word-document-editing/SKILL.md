@@ -5,9 +5,9 @@ description: Read and edit a Word document that is currently open in Word deskto
 
 # Editing a live Word document
 
-`word-mcp` edits the document the user has open in Word. It has no file access, so
-every operation acts on the live document in memory, and only the pinned document
-is reachable.
+`word-mcp` edits the document the user has open in Word. It never opens or
+saves-as a document, so every operation acts on the live document in memory, and
+only the pinned document is reachable.
 
 ## Quick start
 
@@ -49,17 +49,21 @@ fields, so numbers renumber themselves and `edit_fields("table_of_figures")` can
 collect them.
 
 **Page furniture.** `edit_page_layout` handles page setup, columns, section
-breaks, and headers and footers by `side` and `which`. Put a page number in a
-footer by targeting the footer text and calling `edit_fields("insert",
-field="page")`.
+breaks, and headers and footers by `side` and `which`. `header_footer` writes
+literal text only, and a live page number cannot be placed in a footer: a footer
+target is resolved against the main text story, so `edit_fields("insert",
+field="page")` lands in the body instead.
 
-**Comments and revisions.** `edit_annotations` adds, replies to, and resolves
-comments, and toggles track changes. Agent edits are not tracked unless you call
-`track_changes` with `mode="on"` first, so do that before a review pass when the
-user wants to accept or reject your work.
+**Comments and revisions.** `edit_annotations` adds and replies to comments, and
+toggles track changes. Resolving a comment is not supported on this Word build.
+Agent edits are not tracked unless you call `track_changes` with `mode="on"`
+first, so do that before a review pass when the user wants to accept or reject
+your work.
 
 **Undo a mistake.** `revert_change(operation_id)` undoes the newest change only,
-in reverse order. Each mutation returns its operation id.
+in reverse order. Only `edit_text`, `format_text`, `manage_style("apply")`, and
+`insert_ooxml` return an operation id; the other mutations are not recorded and
+cannot be reverted.
 
 ## Rules that keep you out of trouble
 

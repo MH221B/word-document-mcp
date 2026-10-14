@@ -19,9 +19,10 @@ A `target` argument is an object with any of these keys:
 | `match_case` | Case-sensitive matching. |
 | `occurrence` | Pick the nth match instead of failing on ambiguity. |
 
-Whitespace is collapsed and curly quotes are folded to straight before matching.
-Searches stop at 50 candidates. `footnote`, `endnote`, and `comment` containers are
-accepted by the spec but not implemented in search, which reports
+`find_text` collapses whitespace and folds curly quotes to straight when it
+decides whether a candidate `matched`; the Word search itself uses the text as
+given. Searches stop at 50 candidates. `footnote`, `endnote`, and `comment`
+containers are accepted by the spec but not implemented in search, which reports
 `invalid_argument`.
 
 There is no paragraph-index addressing. Use the tokens from `document_outline`
@@ -109,14 +110,15 @@ constructs with no object model.
 | `document_not_found` | The pin was lost, or the document was renamed or moved. Reconnect. |
 | `document_ambiguous` | Two open documents share the name. Pass a path. |
 | `ambiguous_target` | Narrow the target using `candidates`. |
-| `target_not_found` | Re-read the document; the text may have changed. |
+| `target_not_found` | Re-read the document (the text may have changed), or use a valid table, image, comment, or control index. |
 | `stale_token` | The anchored range was deleted. Read again for a fresh token. |
 | `word_busy` | A dialog or an active edit is blocking Word. Wait for the user. |
 | `word_disconnected` | Word closed. Reconnect after it reopens. |
 | `protected_document` | Editing restrictions are on. Report them. |
 | `read_only_document` | The document opened read-only. Report it. |
 | `confirmation_required` | Re-issue with `confirm=true` once the user agrees. |
-| `invalid_argument` | The message lists the allowed values. |
+| `invalid_argument` | The message names the problem and usually the allowed values. |
+| `word_error` | A Word COM failure the server could not classify, or the busy timeout. The message carries Word's error. |
 
 ## Recipes
 
@@ -128,8 +130,9 @@ insertion point, with `toc_options` keys `upper_heading_level` and
 `lower_heading_level`. Collect captions with `edit_fields("table_of_figures",
 toc_options={"label": "Figure"})`. Refresh both with `edit_fields("update_all")`.
 
-**Cross-reference.** Captions are SEQ fields, so insert the caption first, then
-insert a reference field, or `get_ooxml` an existing reference to copy its markup.
+**Cross-reference.** Captions are SEQ fields. No tool inserts a reference (REF)
+field — `edit_fields` insert supports only `page`, `date`, and `sequence` — so
+`get_ooxml` an existing reference and re-insert its markup with `insert_ooxml`.
 Caption numbering that follows the document scheme renumbers itself.
 
 **Numbering a list.** `manage_list("apply", list_format="number")` then
