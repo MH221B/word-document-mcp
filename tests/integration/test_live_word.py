@@ -3,8 +3,9 @@
     uv run pytest -m integration
 
 Tests run in file order and edit the open document. Regenerate a clean sample
-first: close it in Word, run `uv run python samples/make_samples.py`, reopen it.
-The last test saves the document to a temporary copy and puts it back.
+first: `uv run python samples/reset_sample.py` closes it, `uv run python
+samples/make_samples.py` rewrites it, `uv run python samples/open_sample.py`
+reopens it. The last test saves the document to a temporary copy and puts it back.
 """
 
 import pytest
