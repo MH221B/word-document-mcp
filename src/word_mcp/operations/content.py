@@ -173,3 +173,79 @@ def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
         f"Unknown action {action!r}.",
         allowed=["hyperlink", "bookmark_add", "bookmark_find", "footnote", "endnote"],
     )
+
+
+WD_CONTENT_CONTROL_RICH_TEXT = 0
+WD_CONTENT_CONTROL_TEXT = 1
+WD_CONTENT_CONTROL_DROPDOWN = 3
+WD_CONTENT_CONTROL_DATE = 6
+WD_CONTENT_CONTROL_CHECKBOX = 8
+
+CONTROL_TYPES = {
+    "rich_text": WD_CONTENT_CONTROL_RICH_TEXT,
+    "text": WD_CONTENT_CONTROL_TEXT,
+    "dropdown": WD_CONTENT_CONTROL_DROPDOWN,
+    "date": WD_CONTENT_CONTROL_DATE,
+    "checkbox": WD_CONTENT_CONTROL_CHECKBOX,
+}
+
+
+def edit_content_controls(
+    session,
+    resolve,
+    action: str,
+    spec=None,
+    control_index: int = 1,
+    control_type: str = "rich_text",
+    tag: str = "",
+    title: str = "",
+    value: str = "",
+    items: list | None = None,
+) -> dict:
+    doc = session.doc()
+    require_writable(doc)
+
+    if action == "insert":
+        if control_type not in CONTROL_TYPES:
+            raise InvalidArgument(f"Unknown control type {control_type!r}.", allowed=sorted(CONTROL_TYPES))
+        match = resolve(session, spec)
+        control = session.guard(lambda: doc.ContentControls.Add(CONTROL_TYPES[control_type], match.handle))
+        if tag:
+            session.guard(lambda: setattr(control, "Tag", tag))
+        if title:
+            session.guard(lambda: setattr(control, "Title", title))
+        if value:
+            session.guard(lambda: setattr(control.Range, "Text", value))
+        if items and control_type == "dropdown":
+            control = session.guard(lambda: control.DropdownListEntries)
+            for item in items:
+                session.guard(lambda i=item: control.Add(Text=i, Value=i))
+        return {"inserted": control_type, "tag": tag, "title": title, "at": match.describe()}
+
+    controls = session.guard(lambda: list(doc.ContentControls))
+    if control_index < 1 or control_index > len(controls):
+        raise TargetNotFound(f"There is no content control {control_index}.", controls=len(controls))
+    control = controls[control_index - 1]
+
+    if action == "set_value":
+        if session.guard(lambda: control.Type) == WD_CONTENT_CONTROL_CHECKBOX:
+            session.guard(lambda: setattr(control, "Checked", value in ("true", "True", "1", "yes")))
+        else:
+            session.guard(lambda: setattr(control.Range, "Text", value))
+        return {"content_control": control_index, "value": value}
+
+    if action == "list":
+        return {
+            "content_controls": [
+                {
+                    "index": i,
+                    "type": int(session.guard(lambda c=c: c.Type)),
+                    "tag": str(session.guard(lambda c=c: c.Tag)),
+                    "title": str(session.guard(lambda c=c: c.Title)),
+                    "text": str(session.guard(lambda c=c: c.Range.Text))[:120],
+                }
+                for i, c in enumerate(controls, start=1)
+            ]
+        }
+
+    raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "set_value", "list"])

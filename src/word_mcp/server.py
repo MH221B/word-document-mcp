@@ -326,3 +326,25 @@ def edit_links(
             name=name, text=text,
         )
     return run(go)
+
+
+@mcp.tool()
+def edit_content_controls(
+    action: str,
+    target: dict | None = None,
+    control_index: int = 1,
+    control_type: str = "rich_text",
+    tag: str = "",
+    title: str = "",
+    value: str = "",
+    items: list | None = None,
+) -> str:
+    """Insert, set, or list content controls."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return content_ops.edit_content_controls(
+            SESSION, inspect.resolve, action=action, spec=spec,
+            control_index=control_index, control_type=control_type, tag=tag,
+            title=title, value=value, items=items,
+        )
+    return run(go)
