@@ -97,3 +97,15 @@ def find_text(
                 break
         return {"searched": text, "container": container, "matches": out}
     return run(go)
+
+
+@mcp.tool()
+def inspect_document() -> str:
+    """Styles, comments, revisions, bookmarks, content controls, template, protection."""
+    return run(lambda: inspect.inspect_document(SESSION))
+
+
+@mcp.tool()
+def get_ooxml(target: dict) -> str:
+    """WordprocessingML for a target, for detailed inspection or copying."""
+    return run(lambda: inspect.get_ooxml(SESSION, inspect.TargetSpec(**target)))

@@ -222,3 +222,75 @@ def resolve(session, spec: TargetSpec) -> Match:
             found = narrowed or found
         return choose(spec.text or spec.style or "", found, spec.occurrence)[0]
     raise InvalidArgument("Give a token, or text, style, or heading_path.")
+
+
+def inspect_document(session) -> dict:
+    doc = session.doc()
+    styles = [
+        {
+            "name": str(session.guard(lambda s=style: s.NameLocal)),
+            "built_in": bool(session.guard(lambda s=style: s.BuiltIn)),
+            "type": int(session.guard(lambda s=style: s.Type)),
+            "in_use": bool(session.guard(lambda s=style: s.InUse)),
+        }
+        for style in session.guard(lambda: list(doc.Styles))
+    ]
+    comments = [
+        {
+            "index": i,
+            "author": str(session.guard(lambda c=comment: c.Author)),
+            "text": str(session.guard(lambda c=comment: c.Range.Text)),
+            "done": bool(session.guard(lambda c=comment: c.Done)),
+            "scope": str(session.guard(lambda c=comment: c.Scope.Text))[:120],
+        }
+        for i, comment in enumerate(session.guard(lambda: list(doc.Comments)), start=1)
+    ]
+    revisions = [
+        {
+            "index": i,
+            "type": int(session.guard(lambda r=rev: r.Type)),
+            "author": str(session.guard(lambda r=rev: r.Author)),
+            "text": str(session.guard(lambda r=rev: r.Range.Text))[:120],
+        }
+        for i, rev in enumerate(session.guard(lambda: list(doc.Revisions)), start=1)
+    ]
+    bookmarks = [
+        str(session.guard(lambda b=bm: b.Name))
+        for bm in session.guard(lambda: list(doc.Bookmarks))
+    ]
+    controls = [
+        {
+            "index": i,
+            "type": int(session.guard(lambda c=cc: c.Type)),
+            "tag": str(session.guard(lambda c=cc: c.Tag)),
+            "title": str(session.guard(lambda c=cc: c.Title)),
+            "text": str(session.guard(lambda c=cc: c.Range.Text))[:120],
+        }
+        for i, cc in enumerate(session.guard(lambda: list(doc.ContentControls)), start=1)
+    ]
+    # doc.UpdateStylesOnOpen is one of the unverified members flagged in the spec.
+    # If it raises, drop that key rather than failing the whole tool.
+    try:
+        template_update = bool(session.guard(lambda: doc.UpdateStylesOnOpen))
+    except Exception:
+        template_update = None
+    return {
+        "template": str(session.guard(lambda: doc.AttachedTemplate.FullName)),
+        "template_update_on_open": template_update,
+        "track_revisions": bool(session.guard(lambda: doc.TrackRevisions)),
+        "protection_type": int(session.guard(lambda: doc.ProtectionType)),
+        "properties": {
+            "title": str(session.guard(lambda: doc.BuiltInDocumentProperties("Title"))),
+            "author": str(session.guard(lambda: doc.BuiltInDocumentProperties("Author"))),
+        },
+        "styles": styles,
+        "comments": comments,
+        "revisions": revisions,
+        "bookmarks": bookmarks,
+        "content_controls": controls,
+    }
+
+
+def get_ooxml(session, spec) -> dict:
+    match = resolve(session, spec)
+    return {"target": match.describe(), "ooxml": str(session.guard(lambda: match.handle.XML))}
