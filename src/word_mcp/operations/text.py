@@ -78,14 +78,24 @@ def _replace(session, stack, doc, rng, text, format_mode, formatting) -> dict:
 def _apply_mode(session, rng, style_before, format_mode, formatting) -> None:
     """inherit leaves Word's own formatting alone, which is the default."""
     if format_mode == "style_only":
-        session.guard(lambda: rng.ClearFormatting())
+        _clear_formatting(session, rng)
         session.guard(lambda: setattr(rng, "Style", style_before))
     elif format_mode == "explicit":
         if not formatting:
             raise InvalidArgument("format_mode='explicit' needs a formatting dict.")
-        session.guard(lambda: rng.ClearFormatting())
+        _clear_formatting(session, rng)
         session.guard(lambda: setattr(rng, "Style", style_before))
         apply_font(session, rng, formatting)
+
+
+def _clear_formatting(session, rng) -> None:
+    """Clear direct formatting.
+
+    Range.ClearFormatting is not dispatchable on this Word build, so reset the
+    font and the paragraph format, which clears the same direct formatting.
+    """
+    session.guard(lambda: rng.Font.Reset())
+    session.guard(lambda: rng.ParagraphFormat.Reset())
 
 
 def apply_font(session, rng, formatting: dict) -> None:
@@ -131,7 +141,7 @@ def format_text(
     if action == "clear":
         before = _capture(session, rng)
         change = stack.record("format", "clear formatting", rng, format_before=before)
-        session.guard(lambda: rng.ClearFormatting())
+        _clear_formatting(session, rng)
         return _result(change, doc)
 
     if action == "copy_from":

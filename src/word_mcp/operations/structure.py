@@ -156,22 +156,34 @@ def _caption_table(session, table, label: str, title: str, position: str) -> dic
     figures can collect them.
     """
     doc = session.doc()
-    anchor = session.guard(lambda: doc.Range(table.Range.End, table.Range.End))
-    session.guard(lambda: anchor.InsertAfter("\r"))
-    para = session.guard(lambda: doc.Range(anchor.Start, anchor.Start + 1).Paragraphs(1).Range)
+    # Caption the table's own range; InsertCaption adds the caption as its own
+    # paragraph, which is then located so it can be styled and its text reported.
+    end = int(session.guard(lambda: table.Range.End))
     session.guard(
-        lambda: para.InsertCaption(
+        lambda: table.Range.InsertCaption(
             Label=label,
             Title=title,
             Position=WD_CAPTION_BELOW if position == "below" else WD_CAPTION_ABOVE,
         )
+    )
+    caption_para = None
+    for candidate in session.guard(lambda: list(doc.Paragraphs)):
+        if int(session.guard(lambda c=candidate: c.Range.Start)) == end:
+            caption_para = candidate.Range
+            break
+    if caption_para is not None:
+        session.guard(lambda: setattr(caption_para, "Style", "Caption"))
+    text = (
+        str(session.guard(lambda: caption_para.Text)).strip()
+        if caption_para is not None
+        else ""
     )
     return {
         "caption_added": True,
         "label": label,
         "title": title,
         "position": position,
-        "text": str(session.guard(lambda: para.Text)).strip(),
+        "text": text,
     }
 
 
