@@ -49,15 +49,24 @@ class Match:
 
 
 class TokenStore:
-    """Holds resolved locations for the life of the session."""
+    """Holds resolved locations for the life of the session.
 
-    def __init__(self) -> None:
+    Each entry keeps a live COM range, so the store is capped: the oldest are
+    evicted, and using an evicted token raises the same StaleToken the caller
+    already handles. Tokens are deliberately kept across edits, because Word
+    moves the ranges with the text.
+    """
+
+    def __init__(self, limit: int = 1000) -> None:
         self._items: dict[str, Match] = {}
+        self._limit = limit
 
     def add(self, match: Match) -> str:
         token = match.token or secrets.token_hex(4)
         match.token = token
         self._items[token] = match
+        while len(self._items) > self._limit:
+            self._items.pop(next(iter(self._items)))
         return token
 
     def get(self, token: str) -> Match:

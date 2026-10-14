@@ -73,6 +73,7 @@ def disconnect_document() -> str:
     """Forget the pinned document."""
     def go():
         SESSION.unpin()
+        inspect.TOKENS.clear()
         return {"pinned": None}
     return run(go)
 
