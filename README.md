@@ -23,6 +23,11 @@ Word must be running with the target document open, in the same user session.
     uv run pytest                      # unit tests, no Word needed
     uv run pytest -m integration       # requires Word open with samples/plain.docx
 
+The integration tests edit the open sample document, and the last one saves it to
+a temporary copy and then puts it back. Regenerate a clean sample before a full
+run: close the document in Word, run `uv run python samples/make_samples.py`, then
+reopen `samples/plain.docx`.
+
 ## Known behaviour
 
 Manual checks from the plan. These need a human at the keyboard, so they are

@@ -20,3 +20,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 markers = ["integration: requires a running Word instance"]
+addopts = "-m 'not integration'"

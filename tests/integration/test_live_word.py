@@ -2,8 +2,9 @@
 
     uv run pytest -m integration
 
-Tests run in file order and mutate the open document. The last test saves a copy,
-so a run leaves plain.docx pointed at a new path; reopen plain.docx afterwards.
+Tests run in file order and edit the open document. Regenerate a clean sample
+first: close it in Word, run `uv run python samples/make_samples.py`, reopen it.
+The last test saves the document to a temporary copy and puts it back.
 """
 
 import pytest
@@ -77,15 +78,18 @@ def test_caption_lands_outside_the_table(session):
 
 def test_saved_copy_carries_the_text(tmp_path, session):
     """Read the saved file with python-docx, so the check does not depend on our
-    own reader. Must stay last: SaveAs2 moves the document to a new path."""
+    own reader. Must stay last: it saves the document to a copy, then puts it
+    back where it was."""
     from docx import Document
 
-    path = tmp_path / "check.docx"
     doc = session.doc()
-    doc.SaveAs2(str(path))
+    original = session.pinned().path
+    path = tmp_path / "check.docx"
+    session.guard(lambda: doc.SaveAs2(str(path)))
     try:
         body = "\n".join(p.text for p in Document(str(path)).paragraphs)
         assert "Total riders" in body
         assert "Integration caption" in body
     finally:
+        session.guard(lambda: doc.SaveAs2(original))
         session.unpin()

@@ -116,14 +116,29 @@ def manage_list(
         return {"continued": True, "to": match.describe()}
 
     if action == "restart":
+        # ListValue is read-only, so the start number comes from the template's
+        # level before it is applied, and the value Word actually used is read back.
+        template = session.guard(lambda: galleries(3).ListTemplates(1))  # wdNumberGallery
+        levels = session.guard(lambda: template.ListLevels)
+        if level < 1 or level > int(session.guard(lambda: levels.Count)):
+            raise InvalidArgument(
+                f"Level {level} is out of range.", levels=int(session.guard(lambda: levels.Count))
+            )
+        session.guard(lambda: setattr(levels(level), "StartAt", start_at))
         session.guard(lambda: rng.ListFormat.ApplyListTemplateWithLevel(
-            ListTemplate=session.guard(lambda: galleries(3).ListTemplates(1)),
+            ListTemplate=template,
             ContinuePreviousList=False,
+            ApplyTo=0,
             DefaultListBehavior=2,
         ))
-        restarted = session.guard(lambda: rng.ListFormat.List.ListParagraphs(1).Range.ListFormat)
-        session.guard(lambda: setattr(restarted, "ListValue", start_at))
-        return {"restarted_at": start_at, "to": match.describe()}
+        actual = int(session.guard(lambda: rng.ListFormat.ListValue))
+        return {
+            "restarted_at": actual,
+            "requested": start_at,
+            "level": level,
+            "to": match.describe(),
+            "note": "StartAt is set on the shared number gallery template, which persists for the session.",
+        }
 
     if action == "set_level":
         # A style-only bullet (for example the built-in List Bullet style) carries no
