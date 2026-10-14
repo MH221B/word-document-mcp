@@ -163,18 +163,23 @@ def deviations(session, handle) -> dict:
 
 def read_range(session, spec, include_formatting: bool = False) -> dict:
     match = resolve(session, spec)
-    text = session.guard(lambda: match.handle.Text)
-    payload = {"target": match.describe(), "text": text}
+    payload = {
+        "target": match.describe(),
+        "text": session.guard(lambda: match.handle.Text),
+    }
     if include_formatting:
-        payload["formatting"] = get_formatting(session, spec)
+        payload["formatting"] = _formatting(session, match)
     return payload
 
 
 def get_formatting(session, spec) -> dict:
-    match = resolve(session, spec)
+    return _formatting(session, resolve(session, spec))
+
+
+def _formatting(session, match) -> dict:
     handle = match.handle
     paragraph = session.guard(lambda: handle.Paragraphs(1))
-    payload = {
+    return {
         "target": match.describe(),
         "paragraph_style": str(session.guard(lambda: paragraph.Style.NameLocal)),
         "character_style": str(session.guard(lambda: handle.Style.NameLocal)),
@@ -183,7 +188,6 @@ def get_formatting(session, spec) -> dict:
         "paragraph": _snapshot(handle.ParagraphFormat, PARA_PROPS, session),
         "deviations_from_style": deviations(session, handle),
     }
-    return payload
 
 
 def search_range(session, doc: Any, spec: TargetSpec):
