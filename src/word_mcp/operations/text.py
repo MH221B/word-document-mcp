@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument
 from word_mcp.history import ChangeStack
-from word_mcp.operations import check_format_mode, gate_delete, gate_range
+from word_mcp.operations import check_format_mode, gate_delete, gate_range, note_span
 from word_mcp.session import require_writable
 
 
@@ -39,6 +39,7 @@ def edit_text(
             "text", f"delete {len(before)} chars", rng, container=spec.container, text_before=before
         )
         session.guard(lambda: rng.Delete())
+        note_span(session, rng)
         return _result(change, doc)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
 
@@ -57,6 +58,7 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
         else:
             session.guard(lambda: point.InsertBefore(text))
         inserted = session.guard(lambda: point.Duplicate)
+        note_span(session, inserted)
         change = stack.record(
             "text", f"insert at {position}", inserted, container=container, text_before=""
         )
@@ -64,6 +66,7 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
         change = stack.record("text", "insert at replace", rng, container=container, text_before=before)
         session.guard(lambda: setattr(rng, "Text", text))
         inserted = session.guard(lambda: rng.Duplicate)
+        note_span(session, inserted)
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
     _apply_mode(session, inserted, style_before, format_mode, formatting)
@@ -76,6 +79,7 @@ def _replace(session, stack, doc, rng, text, format_mode, formatting, container)
     change = stack.record("text", "replace", rng, container=container, text_before=before)
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
+    note_span(session, fresh)
     _apply_mode(session, fresh, style_before, format_mode, formatting)
     return _result(change, doc, style=style_before)
 
@@ -140,6 +144,7 @@ def format_text(
     require_writable(doc)
     match = resolve(session, spec)
     rng = match.handle
+    note_span(session, rng)
     length = int(session.guard(lambda: rng.End - rng.Start))
     gate_range(length, confirm)
 

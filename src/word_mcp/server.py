@@ -37,17 +37,19 @@ def run(fn: Callable[[], Any]) -> str:
 
 
 def mutate(fn: Callable[[], Any]) -> str:
-    """Call a mutating operation, then drop the cached structure index.
+    """Call a mutating operation, then settle the cached structure index.
 
-    A restyle changes heading levels without changing any text, so the index
-    fingerprint cannot detect it and the next read must rebuild.
+    An operation that reported the span it changed patches the index in place; a
+    failed operation, and every operation that cannot describe itself, drops it
+    and the next read rebuilds.
     """
+    SESSION.begin_change()
     try:
         out = fn()
     except WordMcpError as exc:
-        return tool_error(exc)
-    finally:
         SESSION.invalidate_index()
+        return tool_error(exc)
+    SESSION.settle_index()
     return json.dumps(out, indent=2, default=str)
 
 

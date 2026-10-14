@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, WordMcpError
 from word_mcp.history import ChangeStack
-from word_mcp.operations import gate_range
+from word_mcp.operations import gate_range, note_span
 from word_mcp.session import require_writable
 
 WD_STYLE_PARAGRAPH = 1
@@ -62,6 +62,7 @@ def manage_style(
         gate_range(length, confirm)
         before = str(session.guard(lambda: match.handle.Style.NameLocal))
         change = stack.record("format", f"apply style {name}", match.handle, container=spec.container, format_before={"Style": before})
+        note_span(session, match.handle)
         session.guard(lambda: setattr(match.handle, "Style", name))
         return {"operation_id": change.op_id, "applied": name, "previous": before}
 
@@ -97,6 +98,7 @@ def manage_list(
     require_writable(doc)
     match = resolve(session, spec)
     rng = match.handle
+    note_span(session, rng)
     # ListGalleries is an Application property, not a Document one.
     galleries = session.guard(lambda: session.app().ListGalleries)
 

@@ -52,3 +52,15 @@ def caption_paragraph(session, doc, start: int, end: int, position: str):
     """
     point = max(end, 0) if position == "below" else max(start - 1, 0)
     return session.guard(lambda: doc.Range(point, point).Paragraphs(1).Range)
+
+
+def note_span(session, rng) -> None:
+    """Tell the session which span this operation changed.
+
+    `rng` is the range the change produced, in post-edit offsets: the inserted
+    text for an insert, the new text for a replace, the collapsed point for a
+    delete. A tool that does not call this drops the index, as it always did.
+    """
+    session.note_change(
+        int(session.guard(lambda: rng.Start)), int(session.guard(lambda: rng.End))
+    )

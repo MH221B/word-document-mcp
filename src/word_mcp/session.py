@@ -59,6 +59,8 @@ class ComWordSession:
         self._info: DocumentInfo | None = None
         self._index: StructureIndex | None = None
         self._inventory: dict | None = None
+        self._end_before: int | None = None
+        self._change: tuple[int, int] | None = None
 
     # -- connection ---------------------------------------------------------
 
@@ -229,6 +231,60 @@ class ComWordSession:
     def set_inventory(self, payload: dict | None) -> None:
         """Cache the inventory, or clear it with None."""
         self._inventory = payload
+
+    def begin_change(self) -> None:
+        """Snapshot the length, so a mutation can be described to the index.
+
+        Never raises: a mutation that cannot be described simply drops the index,
+        which is what happened before this existed.
+        """
+        self._change = None
+        self._end_before = None
+        if self._index is None:
+            return
+        try:
+            self._end_before = int(self.guard(lambda: self.doc().Content.End))
+        except Exception:
+            self._end_before = None
+
+    def note_change(self, start: int, end: int) -> None:
+        """Record the span a mutating operation changed, in post-edit offsets."""
+        self._change = (start, end)
+
+    def settle_index(self) -> None:
+        """Patch the cached index if the recorded change verifies, else drop it.
+
+        A wrong index is worse than a slow one, so nothing here is trusted: the
+        index must have been fresh, the paragraph count must be unchanged, and the
+        touched paragraphs must still be headings exactly as stored. Any failure,
+        including a read that raises, drops the index and costs a rebuild.
+        """
+        try:
+            self._settle()
+        except Exception:
+            self.invalidate_index()
+
+    def _settle(self) -> None:
+        index = self._index
+        if index is None:
+            return
+        if self._change is None or self._end_before is None:
+            self.invalidate_index()
+            return
+        start, end = self._change
+        doc = self.doc()
+        end_now = int(self.guard(lambda: doc.Content.End))
+        if self._end_before != index.fingerprint:
+            self.invalidate_index()  # the index was already stale before the edit
+            return
+        count = int(self.guard(lambda: doc.Paragraphs.Count))
+        if count != index.paragraph_count or not index.levels_match(self, doc, start, end):
+            self.invalidate_index()
+            return
+        if not index.patch(start, end_now - self._end_before, end_now, count):
+            self.invalidate_index()
+            return
+        index.refresh_span(self, doc, start, end)
 
     # -- guard --------------------------------------------------------------
 
