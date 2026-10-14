@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, TargetNotFound
 from word_mcp.session import require_writable
+from word_mcp.operations import caption_paragraph
 
 WD_WRAP_INLINE = 0
 WD_WRAP_SQUARE = 1
@@ -97,24 +98,16 @@ def _caption_image(session, shape, label: str, title: str, position: str) -> dic
     para = session.guard(lambda: shape.Range.Paragraphs(1).Range)
     # Caption the image's own paragraph. InsertCaption adds the caption as its own
     # paragraph; find that paragraph so it can be styled and its text reported.
-    start = int(session.guard(lambda: para.End))
+    start = int(session.guard(lambda: para.Start))
+    end = int(session.guard(lambda: para.End))
     session.guard(
         lambda: para.InsertCaption(
             Label=label, Title=title, Position=-1 if position == "above" else 1
         )
     )
-    caption_para = None
-    for candidate in session.guard(lambda: list(doc.Paragraphs)):
-        if int(session.guard(lambda c=candidate: c.Range.Start)) == start:
-            caption_para = candidate.Range
-            break
-    if caption_para is not None:
-        session.guard(lambda: setattr(caption_para, "Style", "Caption"))
-    text = (
-        str(session.guard(lambda: caption_para.Text)).strip()
-        if caption_para is not None
-        else ""
-    )
+    caption_para = caption_paragraph(session, doc, start, end, position)
+    session.guard(lambda: setattr(caption_para, "Style", "Caption"))
+    text = str(session.guard(lambda: caption_para.Text)).strip()
     return {
         "caption_added": True,
         "label": label,

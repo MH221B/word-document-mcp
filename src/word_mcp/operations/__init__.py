@@ -40,3 +40,15 @@ def gate_range(length: int, confirm: bool) -> None:
 def require_confirm(confirm: bool, what: str) -> None:
     if not confirm:
         raise ConfirmationRequired(f"{what} requires confirm=true.")
+
+
+def caption_paragraph(session, doc, start: int, end: int, position: str):
+    """The paragraph InsertCaption just added, from the anchor's own boundary.
+
+    Word inserts the caption as its own paragraph directly before or after the
+    anchor, so the caption's boundary is the anchor's old boundary: below, the
+    caption starts where the anchor ended; above, it ends where the anchor began.
+    Scanning every paragraph for the offset only worked for `below`.
+    """
+    point = max(end, 0) if position == "below" else max(start - 1, 0)
+    return session.guard(lambda: doc.Range(point, point).Paragraphs(1).Range)
