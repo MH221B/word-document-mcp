@@ -19,6 +19,11 @@ A `target` argument is an object with any of these keys:
 | `match_case` | Case-sensitive matching. |
 | `occurrence` | Pick the nth match instead of failing on ambiguity. |
 
+`heading_path` lists **ancestors only**, nearest last: headings with a smaller
+outline level. A heading does not name itself, and a previous sibling at the
+same level is not an ancestor. So a match under a level-2 heading reports
+`"Top > Sub"`, and a level-1 heading reports `""`.
+
 `find_text` collapses whitespace and folds curly quotes to straight when it
 decides whether a candidate `matched`; the Word search itself uses the text as
 given. Searches stop at 50 candidates. `footnote`, `endnote`, and `comment`
@@ -40,7 +45,7 @@ or `find_text`.
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `document_outline` | `depth=9` | Headings with tokens, tables with size, sections with page size, images. |
+| `document_outline` | `depth=9`, `refresh=false` | Headings with tokens, tables with size, sections with page size, images. Structure is cached, so calling it again on an unchanged document is cheap. `refresh=true` rebuilds after a structural change made by hand in Word. |
 | `read_range` | `target`, `include_formatting=False` | Text, and optionally the formatting block. |
 | `get_formatting` | `target` | Paragraph and character style, font and paragraph snapshots, and `deviations_from_style`. |
 | `find_text` | `text`, `container`, `heading_path`, `style`, `wildcards`, `match_case`, `limit=20` | Candidates with context. Never fails on ambiguity. |

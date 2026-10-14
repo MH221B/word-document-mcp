@@ -91,6 +91,10 @@ cannot be reverted.
   for ten seconds, so wait for the user rather than looping.
 - `word_disconnected` means Word closed. Ask the user to reopen the document, then
   connect again.
+- Reads come from a structure index cached per document version, so a second
+  `document_outline` on an unchanged document is nearly free. A structural change
+  made directly in Word, rather than through a tool, may need
+  `document_outline(refresh=true)` before the new headings appear.
 
 ## Reference
 
