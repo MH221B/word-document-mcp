@@ -63,7 +63,7 @@ recorded as not executed in this environment, with the behaviour to expect.
   Expected: the tool reports a conflict rather than retrying forever. Not run:
   no co-authored document with a second author lock was available.
 - Read structure is cached per document version. On a 1,616-paragraph, 42-table
-  document (`DD130.docx`) the first `document_outline` takes about 15 seconds and
+  document the first `document_outline` takes about 15 seconds and
   every later call on the unchanged document about 0.2 seconds; `find_text`
   drops from about two minutes to about 3 seconds for 47 matches, most of which
   is Word's own per-match search. The cache is dropped by any edit tool, and
