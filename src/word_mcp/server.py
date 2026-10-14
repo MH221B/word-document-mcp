@@ -12,6 +12,7 @@ from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import content as content_ops
 from word_mcp.operations import document as document_ops
+from word_mcp.operations import ooxml as ooxml_ops
 from word_mcp.operations import review as review_ops
 from word_mcp.operations import structure as structure_ops
 from word_mcp.operations import styles as style_ops
@@ -367,5 +368,15 @@ def edit_annotations(
         return review_ops.edit_annotations(
             SESSION, inspect.resolve, action=action, spec=spec, text=text,
             comment_index=comment_index, done=done, mode=mode, confirm=confirm,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def insert_ooxml(target: dict, ooxml: str, confirm: bool = False) -> str:
+    """Insert a WordprocessingML fragment at a target. Use for watermarks and shapes."""
+    def go():
+        return ooxml_ops.insert_ooxml(
+            SESSION, HISTORY, inspect.resolve, inspect.TargetSpec(**target), ooxml, confirm=confirm
         )
     return run(go)
