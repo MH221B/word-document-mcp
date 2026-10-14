@@ -236,3 +236,29 @@ def edit_table(
             title=title, position=position, confirm=confirm,
         )
     return run(go)
+
+
+@mcp.tool()
+def edit_page_layout(
+    action: str,
+    target: dict | None = None,
+    section: int = 1,
+    orientation: str = "",
+    points: dict | None = None,
+    columns: int = 1,
+    side: str = "header",
+    which: str = "primary",
+    text: str = "",
+    different_first_page: bool | None = None,
+    odd_and_even: bool | None = None,
+) -> str:
+    """Page setup, section breaks, columns, headers and footers, and layout flags."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return structure_ops.edit_page_layout(
+            SESSION, inspect.resolve, action=action, spec=spec, section=section,
+            orientation=orientation, points=points, columns=columns, side=side,
+            which=which, text=text, different_first_page=different_first_page,
+            odd_and_even=odd_and_even,
+        )
+    return run(go)

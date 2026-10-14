@@ -173,3 +173,98 @@ def _caption_table(session, table, label: str, title: str, position: str) -> dic
         "position": position,
         "text": str(session.guard(lambda: para.Text)).strip(),
     }
+
+
+WD_ORIENT_PORTRAIT = 0
+WD_ORIENT_LANDSCAPE = 1
+WD_SECTION_BREAK_NEXT_PAGE = 2
+WD_SECTION_BREAK_CONTINUOUS = 3
+WD_HEADER_FOOTER_PRIMARY = 1
+WD_HEADER_FOOTER_FIRST_PAGE = 2
+WD_HEADER_FOOTER_EVEN = 3
+
+LAYOUT_POINT_PROPERTIES = {
+    "top_margin": "TopMargin",
+    "bottom_margin": "BottomMargin",
+    "left_margin": "LeftMargin",
+    "right_margin": "RightMargin",
+    "page_width": "PageWidth",
+    "page_height": "PageHeight",
+    "header_distance": "HeaderDistance",
+    "footer_distance": "FooterDistance",
+    "gutter": "Gutter",
+}
+
+
+def edit_page_layout(
+    session,
+    resolve,
+    action: str,
+    spec=None,
+    section: int = 1,
+    orientation: str = "",
+    points: dict | None = None,
+    columns: int = 1,
+    side: str = "header",
+    which: str = "primary",
+    text: str = "",
+    different_first_page: bool | None = None,
+    odd_and_even: bool | None = None,
+) -> dict:
+    doc = session.doc()
+    require_writable(doc)
+    sections = session.guard(lambda: list(doc.Sections))
+    if section < 1 or section > len(sections):
+        raise InvalidArgument(f"Section {section} is out of range.", sections=len(sections))
+    target_section = sections[section - 1]
+    setup = session.guard(lambda: target_section.PageSetup)
+
+    if action == "page_setup":
+        if orientation:
+            value = WD_ORIENT_LANDSCAPE if orientation == "landscape" else WD_ORIENT_PORTRAIT
+            session.guard(lambda: setattr(setup, "Orientation", value))
+        for key, value in (points or {}).items():
+            if key not in LAYOUT_POINT_PROPERTIES:
+                raise InvalidArgument(f"Unknown page setup property {key!r}.", allowed=sorted(LAYOUT_POINT_PROPERTIES))
+            session.guard(lambda k=key, v=value: setattr(setup, LAYOUT_POINT_PROPERTIES[k], v))
+        if columns > 1:
+            session.guard(lambda: setup.TextColumns.SetCount(columns))
+        return {
+            "section": section,
+            "orientation": "landscape" if session.guard(lambda: setup.Orientation) == WD_ORIENT_LANDSCAPE else "portrait",
+            "columns": columns,
+            "applied": points or {},
+        }
+
+    if action == "section_break":
+        match = resolve(session, spec)
+        kind = WD_SECTION_BREAK_CONTINUOUS if columns == 0 else WD_SECTION_BREAK_NEXT_PAGE
+        session.guard(lambda: match.handle.InsertBreak(kind))
+        return {"section_break": "continuous" if columns == 0 else "next_page", "at": match.describe()}
+
+    if action == "header_footer":
+        index = {
+            "primary": WD_HEADER_FOOTER_PRIMARY,
+            "first_page": WD_HEADER_FOOTER_FIRST_PAGE,
+            "even": WD_HEADER_FOOTER_EVEN,
+        }.get(which)
+        if index is None:
+            raise InvalidArgument(f"Unknown header or footer {which!r}.")
+        collection = (
+            session.guard(lambda: target_section.Headers(index))
+            if side == "header"
+            else session.guard(lambda: target_section.Footers(index))
+        )
+        session.guard(lambda: setattr(collection.Range, "Text", text))
+        return {"side": side, "which": which, "text": text}
+
+    if action == "flags":
+        if different_first_page is not None:
+            session.guard(lambda: setattr(setup, "DifferentFirstPageHeaderFooter", different_first_page))
+        if odd_and_even is not None:
+            session.guard(lambda: setattr(setup, "OddAndEvenPagesHeaderFooter", odd_and_even))
+        return {"different_first_page": different_first_page, "odd_and_even": odd_and_even}
+
+    raise InvalidArgument(
+        f"Unknown action {action!r}.", allowed=["page_setup", "section_break", "header_footer", "flags"]
+    )
