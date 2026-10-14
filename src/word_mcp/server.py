@@ -69,3 +69,31 @@ def read_range(target: dict, include_formatting: bool = False) -> str:
 def get_formatting(target: dict) -> str:
     """Formatting for a target, plus where direct formatting deviates from the style."""
     return run(lambda: inspect.get_formatting(SESSION, inspect.TargetSpec(**target)))
+
+
+@mcp.tool()
+def find_text(
+    text: str,
+    container: str = "body",
+    heading_path: str | None = None,
+    style: str | None = None,
+    wildcards: bool = False,
+    match_case: bool = False,
+    limit: int = 20,
+) -> str:
+    """Find every match with its context. Never guesses; returns candidates."""
+    def go():
+        spec = inspect.TargetSpec(
+            text=text, container=container, heading_path=heading_path, style=style,
+            wildcards=wildcards, match_case=match_case,
+        )
+        norm = inspect.normalise(text)
+        out = []
+        for match in inspect.find_all(SESSION, spec):
+            if heading_path and heading_path not in match.heading_path:
+                continue
+            out.append({**match.describe(), "matched": norm in inspect.normalise(match.text)})
+            if len(out) >= limit:
+                break
+        return {"searched": text, "container": container, "matches": out}
+    return run(go)
