@@ -35,6 +35,15 @@ def test_attach_and_list(session):
     assert "plain.docx" in names
 
 
+def test_every_instance_is_searched(session):
+    """A machine runs several WINWORD processes, and the one holding this document
+    used to be hidden behind GetActiveObject returning a windowless instance. The
+    sample is open in whichever instance, so finding it proves the search covers
+    all of them."""
+    assert session.applications(), "at least one Word instance"
+    assert any(d.path.endswith("plain.docx") for d in session.documents())
+
+
 def test_read_and_find(session):
     found = inspect.find_all(session, inspect.TargetSpec(text="Total"))
     assert len(found) >= 2, "the sample has two Total paragraphs"

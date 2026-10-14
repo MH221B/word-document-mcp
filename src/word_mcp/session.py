@@ -25,6 +25,10 @@ from word_mcp.errors import (
 T = TypeVar("T")
 RETRY_SECONDS = 1.0
 CALL_TIMEOUT_SECONDS = 10.0
+LOOKUP_ATTEMPTS = 3
+LOOKUP_RETRY_SECONDS = 0.5
+# Word's automation server is gone, still starting, or not registered.
+DEAD_SERVER_CODES = (-2147023174, -2146959355, -2147221021, -2147221164)
 
 
 @dataclass
@@ -50,49 +54,124 @@ class WordSession(Protocol):
 
 class ComWordSession:
     def __init__(self) -> None:
-        self._app: Any = None
         self._doc: Any = None
         self._info: DocumentInfo | None = None
 
     # -- connection ---------------------------------------------------------
 
-    def app(self) -> Any:
-        if self._app is None:
-            pythoncom.CoInitialize()
+    def applications(self) -> list[Any]:
+        """Every Word instance reachable on this machine, the user's one first.
+
+        A machine runs several WINWORD processes, and GetActiveObject returns an
+        arbitrary registered one, which is often a windowless background instance
+        holding no documents. Each open document registers a moniker in the running
+        object table, and its Application is the window the user is actually looking
+        at, so the documents lead and GetActiveObject is the fallback.
+
+        The table is a moving target while Word starts and stops, and a stale entry
+        answers with "RPC server is unavailable", so the whole probe is retried
+        before giving up.
+        """
+        pythoncom.CoInitialize()
+        last_error: BaseException | None = None
+        for _ in range(LOOKUP_ATTEMPTS):
+            candidates = self._rot_applications()
             try:
-                self._app = win32com.client.GetActiveObject("Word.Application")
-            except com_error as exc:
-                if getattr(exc, "hresult", None) in (-2147221021, -2147221164):
-                    raise WordNotRunning(
-                        "Word is not running. Open Word and the target document first."
-                    ) from exc
-                raise map_com_error(exc) from exc
-        return self._app
+                candidates.append(win32com.client.GetActiveObject("Word.Application"))
+            except Exception as exc:
+                last_error = exc
+            found = self._dedupe(candidates)
+            if found:
+                # A visible window with documents open, then the most documents.
+                found.sort(key=self._prominence, reverse=True)
+                return found
+            time.sleep(LOOKUP_RETRY_SECONDS)
+        raise self._no_word(last_error)
+
+    @staticmethod
+    def _rot_applications() -> list[Any]:
+        """Applications found through the open documents registered in the table.
+
+        Binding an arbitrary entry can fail in more ways than COM errors, since the
+        table is machine-wide, so every failure here is skipped rather than raised.
+        """
+        out: list[Any] = []
+        try:
+            context = pythoncom.CreateBindCtx(0)
+            table = pythoncom.GetRunningObjectTable()
+        except Exception:
+            return out
+        for moniker in table:
+            try:
+                name = moniker.GetDisplayName(context, None)
+                if name.startswith("!"):
+                    continue  # class monikers and cloud sync objects
+                bound = moniker.BindToObject(context, None, pythoncom.IID_IDispatch)
+                out.append(win32com.client.Dispatch(bound).Application)
+            except Exception:
+                continue
+        return out
+
+    @classmethod
+    def _dedupe(cls, candidates: list[Any]) -> list[Any]:
+        seen: set[tuple] = set()
+        out: list[Any] = []
+        for candidate in candidates:
+            key = cls._signature(candidate)
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            out.append(candidate)
+        return out
+
+    @staticmethod
+    def _no_word(last_error: BaseException | None) -> WordMcpError:
+        hresult = getattr(last_error, "hresult", None)
+        if hresult in DEAD_SERVER_CODES:
+            return WordNotRunning(
+                "Word is open but its automation server is not answering, which "
+                "usually means it is still starting or shutting down. Retry in a "
+                "moment."
+            )
+        return WordNotRunning(
+            "Word is not running. Open Word and the target document first."
+        )
+
+    def app(self) -> Any:
+        """The pinned document's application, or the most prominent one."""
+        if self._doc is not None:
+            return self._doc.Application
+        return self.applications()[0]
 
     def documents(self) -> list[DocumentInfo]:
-        app = self.app()
-        return [
-            self._info_for(doc)
-            for doc in self.guard(lambda: list(app.Documents))
-        ]
+        infos: list[DocumentInfo] = []
+        seen: set[str] = set()
+        for app in self.applications():
+            for doc in self._documents_of(app):
+                info = self._info_for(doc)
+                if info.path not in seen:
+                    seen.add(info.path)
+                    infos.append(info)
+        return infos
 
     def pin(self, key: str) -> DocumentInfo:
-        app = self.app()
-        docs = self.guard(lambda: list(app.Documents))
-        matches = [
-            d for d in docs if self._same(d, key)
-        ]
+        matches: list[tuple[Any, Any]] = []
+        open_names: list[str] = []
+        for app in self.applications():
+            for doc in self._documents_of(app):
+                open_names.append(self._info_for(doc).name)
+                if self._same(doc, key):
+                    matches.append((app, doc))
         if not matches:
             raise DocumentNotFound(
-                f"No open document matches {key!r}.",
-                open=[self._info_for(d).name for d in docs],
+                f"No open document matches {key!r}.", open=open_names
             )
         if len(matches) > 1:
             raise DocumentAmbiguous(
                 f"{key!r} matches more than one open document.",
-                candidates=[self._info_for(d).name for d in matches],
+                candidates=[self._info_for(doc).name for _, doc in matches],
             )
-        self._doc = matches[0]
+        self._doc = matches[0][1]
         self._info = self._info_for(self._doc)
         return self._info
 
@@ -139,6 +218,31 @@ class ComWordSession:
                 raise mapped from exc
 
     # -- helpers ------------------------------------------------------------
+
+    @staticmethod
+    def _documents_of(app: Any) -> list[Any]:
+        try:
+            return list(app.Documents)
+        except Exception:
+            return []
+
+    @staticmethod
+    def _signature(app: Any) -> tuple | None:
+        """What identifies an instance: its open documents and its windows."""
+        try:
+            docs = tuple(sorted(str(doc.FullName) for doc in app.Documents))
+            windows = int(app.Windows.Count)
+        except Exception:
+            return None
+        return (docs, windows)
+
+    @staticmethod
+    def _prominence(app: Any) -> tuple[int, int, int]:
+        try:
+            visible = 1 if app.Visible and app.Windows.Count > 0 else 0
+            return (visible, len(list(app.Documents)), int(app.Windows.Count))
+        except Exception:
+            return (0, 0, 0)
 
     @staticmethod
     def _same(doc: Any, key: str) -> bool:

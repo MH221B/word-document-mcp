@@ -32,7 +32,7 @@ or `find_text`.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `list_open_documents` | none | Name, path, read-only, protected. |
+| `list_open_documents` | none | Name, path, read-only, protected. Every Word instance on the machine is searched, because a machine runs several `WINWORD` processes and the document you see is not always in the one `GetActiveObject` returns. |
 | `connect_document` | `path_or_name` | Pins one document. Ambiguous names return `document_ambiguous`. |
 | `disconnect_document` | none | Forgets the pin. |
 
