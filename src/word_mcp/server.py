@@ -12,6 +12,7 @@ from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import content as content_ops
 from word_mcp.operations import document as document_ops
+from word_mcp.operations import review as review_ops
 from word_mcp.operations import structure as structure_ops
 from word_mcp.operations import styles as style_ops
 from word_mcp.operations import text as text_ops
@@ -346,5 +347,25 @@ def edit_content_controls(
             SESSION, inspect.resolve, action=action, spec=spec,
             control_index=control_index, control_type=control_type, tag=tag,
             title=title, value=value, items=items,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def edit_annotations(
+    action: str,
+    target: dict | None = None,
+    text: str = "",
+    comment_index: int = 1,
+    done: bool = True,
+    mode: str = "",
+    confirm: bool = False,
+) -> str:
+    """Comments, track changes mode, and accepting or rejecting revisions."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return review_ops.edit_annotations(
+            SESSION, inspect.resolve, action=action, spec=spec, text=text,
+            comment_index=comment_index, done=done, mode=mode, confirm=confirm,
         )
     return run(go)
