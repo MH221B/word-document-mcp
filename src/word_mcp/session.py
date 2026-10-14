@@ -213,7 +213,8 @@ class ComWordSession:
         doc = self.doc()
         fingerprint = int(self.guard(lambda: doc.Content.End))
         if self._index is None or self._index.fingerprint != fingerprint:
-            self._index = StructureIndex.build(self, fingerprint)
+            count = int(self.guard(lambda: doc.Paragraphs.Count))
+            self._index = StructureIndex.build(self, fingerprint, count)
         return self._index
 
     def invalidate_index(self) -> None:

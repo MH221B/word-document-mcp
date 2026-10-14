@@ -36,6 +36,7 @@ class StructureIndex:
         tables: list[dict],
         sections: list[dict],
         images: list[dict],
+        paragraph_count: int = 0,
     ) -> None:
         self.fingerprint = fingerprint
         self.paragraph_starts = paragraph_starts
@@ -44,12 +45,15 @@ class StructureIndex:
         self.tables = tables
         self.sections = sections
         self.images = images
+        # The paragraph count is the guard that catches an edit which added or
+        # removed a paragraph mark, which would invalidate the whole offset shift.
+        self.paragraph_count = paragraph_count
         # Minted on the first document_outline: one (token, handle) per heading.
         # Live Word ranges move with the document, so a patched index keeps them.
         self.anchors: list[tuple[str, Any]] | None = None
 
     @classmethod
-    def build(cls, session: Any, fingerprint: int) -> "StructureIndex":
+    def build(cls, session: Any, fingerprint: int, paragraph_count: int) -> "StructureIndex":
         doc = session.doc()
         # One guard around the whole pass: a busy Word retries the read rather
         # than raising a raw COM error halfway through.
@@ -62,6 +66,7 @@ class StructureIndex:
             tables,
             sections,
             images,
+            paragraph_count,
         )
 
     @staticmethod
@@ -149,3 +154,68 @@ class StructureIndex:
         if offset < heading.end:
             return heading.path
         return " > ".join(part for part in (heading.path, heading.text) if part)
+
+    def patch(
+        self, start: int, delta: int, fingerprint: int, paragraph_count: int
+    ) -> bool:
+        """Shift every stored offset a change moved. False when it does not fit.
+
+        `start` is the first offset the edit touched, so offsets strictly greater
+        than it move by `delta` and the paragraph containing it does not. Only
+        called once the paragraph count has been confirmed unchanged.
+        """
+        shifted = [s + delta if s > start else s for s in self.paragraph_starts]
+        if any(b < a for a, b in zip(shifted, shifted[1:])):
+            return False
+        self.paragraph_starts = shifted
+        for heading in self.headings:
+            if heading.start > start:
+                heading.start += delta
+            if heading.end > start:
+                heading.end += delta
+        self.heading_starts = [h.start for h in self.headings]
+        self.fingerprint = fingerprint
+        self.paragraph_count = paragraph_count
+        return True
+
+    def levels_match(self, session: Any, doc: Any, start: int, end: int) -> bool:
+        """Whether a span's paragraphs are headings exactly as stored.
+
+        A formatting change can move a paragraph in or out of the outline without
+        changing a single character, which the fingerprint cannot see. Anything
+        that cannot be read is treated as a mismatch, so the index is dropped.
+        """
+        stored = {self.paragraph_index(h.start): h.level for h in self.headings}
+        first = max(self.paragraph_index(start), 0)
+        last = min(self.paragraph_index(end), len(self.paragraph_starts) - 1)
+        for i in range(first, last + 1):
+            offset = self.paragraph_starts[i]
+            try:
+                para = session.guard(lambda o=offset: doc.Range(o, o).Paragraphs(1))
+                level = int(PARAGRAPH.get(para, "OutlineLevel"))
+            except Exception:
+                return False
+            if level != stored.get(i, WD_OUTLINE_BODY_TEXT):
+                return False
+        return True
+
+    def refresh_span(self, session: Any, doc: Any, start: int, end: int) -> None:
+        """Re-read the headings a change touched, then recompute every path."""
+        touched = [h for h in self.headings if h.start <= end and h.end >= start]
+        if not touched:
+            return
+        for heading in touched:
+            rng = session.guard(lambda h=heading: doc.Range(h.start, h.end))
+            heading.text = RANGE.get(rng, "Text").strip()
+            heading.style = STYLE.get(RANGE.get(rng, "Style"), "NameLocal")
+        self.repath()
+        self.anchors = None  # the minted ranges belong to the old headings
+
+    def repath(self) -> None:
+        """Rebuild every heading's ancestor path from the level stack."""
+        stack: list[Heading] = []
+        for heading in self.headings:
+            while stack and stack[-1].level >= heading.level:
+                stack.pop()
+            heading.path = " > ".join(h.text for h in stack)
+            stack.append(heading)
