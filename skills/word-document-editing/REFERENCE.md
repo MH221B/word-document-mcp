@@ -14,7 +14,7 @@ A `target` argument is an object with any of these keys:
 | `text` | A literal or wildcard pattern. |
 | `style` | Restrict matches to a paragraph style. |
 | `heading_path` | Restrict matches to one heading, using the `"Overview > Risks"` form. |
-| `container` | `body` (default), `header`, or `footer`. Section 1 only. |
+| `container` | `body` (default), `header`, or `footer`. Section 1 only. Offsets inside a header or footer belong to that story, so targets and edits there stay in it. |
 | `wildcards` | Treat `text` as a Word wildcard pattern. |
 | `match_case` | Case-sensitive matching. |
 | `occurrence` | Pick the nth match instead of failing on ambiguity. |
