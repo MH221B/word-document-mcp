@@ -11,6 +11,7 @@ from word_mcp import inspect
 from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import document as document_ops
+from word_mcp.operations import styles as style_ops
 from word_mcp.operations import text as text_ops
 from word_mcp.session import ComWordSession
 
@@ -168,3 +169,41 @@ def save_document() -> str:
 def set_document_properties(properties: dict) -> str:
     """Set built-in (Title, Author, ...) or custom document properties."""
     return run(lambda: document_ops.set_document_properties(SESSION, properties))
+
+
+@mcp.tool()
+def manage_style(
+    action: str,
+    target: dict | None = None,
+    name: str = "",
+    based_on: str = "",
+    formatting: dict | None = None,
+    confirm: bool = False,
+) -> str:
+    """List, create, update, delete, or apply a style."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return style_ops.manage_style(
+            SESSION, HISTORY, inspect.resolve, action=action, spec=spec, name=name,
+            based_on=based_on, formatting=formatting, confirm=confirm,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def manage_list(
+    target: dict,
+    action: str,
+    list_format: str = "bullet",
+    level: int = 1,
+    start_at: int = 1,
+    confirm: bool = False,
+) -> str:
+    """Apply, continue, restart, or change the level of a list."""
+    def go():
+        return style_ops.manage_list(
+            SESSION, HISTORY, inspect.resolve, action=action,
+            spec=inspect.TargetSpec(**target), list_format=list_format, level=level,
+            start_at=start_at, confirm=confirm,
+        )
+    return run(go)
