@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from word_mcp import inspect
 from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
+from word_mcp.operations import content as content_ops
 from word_mcp.operations import document as document_ops
 from word_mcp.operations import structure as structure_ops
 from word_mcp.operations import styles as style_ops
@@ -277,5 +278,51 @@ def edit_fields(
         return structure_ops.edit_fields(
             SESSION, inspect.resolve, action=action, spec=spec, field=field,
             toc_options=toc_options,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def edit_media(
+    action: str,
+    target: dict | None = None,
+    image_index: int = 1,
+    path: str = "",
+    width: float | None = None,
+    height: float | None = None,
+    wrap: str = "inline",
+    label: str = "Figure",
+    title: str = "",
+    position: str = "below",
+) -> str:
+    """Insert an image, size it, set wrapping, or add a caption."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return content_ops.edit_media(
+            SESSION, inspect.resolve, action=action, spec=spec, image_index=image_index,
+            path=path, width=width, height=height, wrap=wrap, label=label, title=title,
+            position=position,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def edit_links(
+    action: str,
+    target: dict | None = None,
+    address: str = "",
+    sub_address: str = "",
+    screen_tip: str = "",
+    display_text: str = "",
+    name: str = "",
+    text: str = "",
+) -> str:
+    """Hyperlinks, bookmarks, footnotes, and endnotes."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return content_ops.edit_links(
+            SESSION, inspect.resolve, action=action, spec=spec, address=address,
+            sub_address=sub_address, screen_tip=screen_tip, display_text=display_text,
+            name=name, text=text,
         )
     return run(go)
