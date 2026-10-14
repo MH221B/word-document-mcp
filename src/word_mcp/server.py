@@ -11,6 +11,7 @@ from word_mcp import inspect
 from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import document as document_ops
+from word_mcp.operations import structure as structure_ops
 from word_mcp.operations import styles as style_ops
 from word_mcp.operations import text as text_ops
 from word_mcp.session import ComWordSession
@@ -205,5 +206,33 @@ def manage_list(
             SESSION, HISTORY, inspect.resolve, action=action,
             spec=inspect.TargetSpec(**target), list_format=list_format, level=level,
             start_at=start_at, confirm=confirm,
+        )
+    return run(go)
+
+
+@mcp.tool()
+def edit_table(
+    action: str,
+    target: dict | None = None,
+    table_index: int = 1,
+    row: int = 0,
+    column: int = 0,
+    rows: int = 1,
+    columns: int = 1,
+    values: list | None = None,
+    formatting: dict | None = None,
+    label: str = "Table",
+    title: str = "",
+    position: str = "below",
+    confirm: bool = False,
+) -> str:
+    """Insert or edit a table, including captions."""
+    def go():
+        spec = inspect.TargetSpec(**target) if target else None
+        return structure_ops.edit_table(
+            SESSION, HISTORY, inspect.resolve, action=action, spec=spec,
+            table_index=table_index, row=row, column=column, rows=rows,
+            columns=columns, values=values, formatting=formatting, label=label,
+            title=title, position=position, confirm=confirm,
         )
     return run(go)
