@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import win32com.client
+
 from word_mcp.addressing import (
     MAX_CANDIDATES,
     Match,
@@ -301,6 +303,7 @@ def _read_inventory(session) -> dict:
     comments = []
     for i, comment in enumerate(comments_raw, start=1):
         def _cm(c=comment):
+            c = win32com.client.Dispatch(c)
             return (str(c.Author), str(c.Range.Text), bool(c.Done), str(c.Scope.Text)[:120])
 
         author, text, done, scope = session.guard(_cm)
@@ -311,6 +314,7 @@ def _read_inventory(session) -> dict:
     revisions = []
     for i, rev in enumerate(revs_raw, start=1):
         def _rv(r=rev):
+            r = win32com.client.Dispatch(r)
             return (int(r.Type), str(r.Author), str(r.Range.Text)[:120])
 
         typ, author, text = session.guard(_rv)
@@ -318,11 +322,12 @@ def _read_inventory(session) -> dict:
     bms_raw = session.guard(lambda: raw_items(doc.Bookmarks))
     bookmarks = []
     for bm in bms_raw:
-        bookmarks.append(str(session.guard(lambda b=bm: b.Name)))
+        bookmarks.append(str(session.guard(lambda b=win32com.client.Dispatch(bm): b.Name)))
     ccs_raw = session.guard(lambda: raw_items(doc.ContentControls))
     controls = []
     for i, cc in enumerate(ccs_raw, start=1):
         def _cc(c=cc):
+            c = win32com.client.Dispatch(c)
             return (int(c.Type), str(c.Tag), str(c.Title), str(c.Range.Text)[:120])
 
         typ, tag, title, text = session.guard(_cc)

@@ -6,6 +6,8 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from typing import Any
 
+import win32com.client
+
 from word_mcp.comfast import PARAGRAPH, RANGE, STYLE, raw_items
 
 WD_OUTLINE_BODY_TEXT = 10
@@ -119,10 +121,13 @@ class StructureIndex:
 
     @staticmethod
     def _summaries(session: Any, doc: Any) -> tuple[list[dict], list[dict], list[dict]]:
+        # raw_items skips per-item wrapping, but attribute reads need a wrapped
+        # object, so each item is wrapped once inside its own guard.
         tables_raw = session.guard(lambda: raw_items(doc.Tables))
         tables = []
         for index, table in enumerate(tables_raw, start=1):
             def _t(t=table):
+                t = win32com.client.Dispatch(t)
                 return (int(t.Rows.Count), int(t.Columns.Count))
 
             rows, cols = session.guard(_t)
@@ -131,6 +136,7 @@ class StructureIndex:
         sections = []
         for index, section in enumerate(sections_raw, start=1):
             def _s(s=section):
+                s = win32com.client.Dispatch(s)
                 ps = s.PageSetup
                 return (float(ps.PageWidth), float(ps.PageHeight), int(ps.Orientation))
 
@@ -142,6 +148,7 @@ class StructureIndex:
         images = []
         for index, shape in enumerate(shapes_raw, start=1):
             def _i(s=shape):
+                s = win32com.client.Dispatch(s)
                 return (int(s.Type), str(s.Range.Paragraphs(1).Range.Text.strip()))
 
             typ, cap = session.guard(_i)
