@@ -15,6 +15,7 @@ VBA_PROBE = "Function ProbePing() As Long\r\n    ProbePing = 1\r\nEnd Function\r
 VBA_SCAN = (
     "Function ScanDoc(fullName As String) As Variant\r\n"
     "    Dim d As Document\r\n"
+    "    Dim p As Paragraph\r\n"
     "    Dim i As Long, n As Long\r\n"
     "    Dim out() As Variant\r\n"
     "    For Each d In Application.Documents\r\n"
@@ -22,13 +23,17 @@ VBA_SCAN = (
     "    Next d\r\n"
     "    n = d.Paragraphs.Count\r\n"
     "    ReDim out(1 To n, 1 To 5)\r\n"
-    "    For i = 1 To n\r\n"
-    "        out(i, 1) = d.Paragraphs(i).Range.Start\r\n"
-    "        out(i, 2) = d.Paragraphs(i).Range.End\r\n"
-    "        out(i, 3) = d.Paragraphs(i).OutlineLevel\r\n"
-    "        out(i, 4) = d.Paragraphs(i).Range.Style.NameLocal\r\n"
-    "        out(i, 5) = d.Paragraphs(i).Range.Text\r\n"
-    "    Next i\r\n"
+    "    i = 0\r\n"
+    # Indexed Paragraphs(i) is linear per access, so the loop goes quadratic:
+    # For Each keeps the whole scan to one in-process pass.
+    "    For Each p In d.Paragraphs\r\n"
+    "        i = i + 1\r\n"
+    "        out(i, 1) = p.Range.Start\r\n"
+    "        out(i, 2) = p.Range.End\r\n"
+    "        out(i, 3) = p.OutlineLevel\r\n"
+    "        out(i, 4) = p.Range.Style.NameLocal\r\n"
+    "        out(i, 5) = p.Range.Text\r\n"
+    "    Next p\r\n"
     "    ScanDoc = out\r\n"
     "End Function\r\n"
 )
