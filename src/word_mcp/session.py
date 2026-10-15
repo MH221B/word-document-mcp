@@ -61,6 +61,7 @@ class ComWordSession:
         self._inventory: dict | None = None
         self._end_before: int | None = None
         self._change: tuple[int, int] | None = None
+        self._macro_ok: bool | None = None
 
     # -- connection ---------------------------------------------------------
 
@@ -231,6 +232,21 @@ class ComWordSession:
     def set_inventory(self, payload: dict | None) -> None:
         """Cache the inventory, or clear it with None."""
         self._inventory = payload
+
+    def macro_available(self) -> bool:
+        """Whether the batched VBA scan may run. Probed once, then cached."""
+        if self._macro_ok is None:
+            try:
+                from word_mcp import macroscan
+
+                self._macro_ok = macroscan.probe(self)
+            except Exception:
+                self._macro_ok = False
+        return self._macro_ok
+
+    def drop_macro(self) -> None:
+        """Forget macro availability after a failed scan."""
+        self._macro_ok = False
 
     def begin_change(self) -> None:
         """Snapshot the length, so a mutation can be described to the index.

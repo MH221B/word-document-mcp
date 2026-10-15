@@ -56,6 +56,33 @@ class StructureIndex:
 
     @classmethod
     def build(cls, session: Any, fingerprint: int, paragraph_count: int) -> "StructureIndex":
+        if session.macro_available():
+            try:
+                return cls.build_macro(session, fingerprint, paragraph_count)
+            except Exception:
+                session.drop_macro()  # ponytail: same output via COM at old speed
+        return cls.build_com(session, fingerprint, paragraph_count)
+
+    @classmethod
+    def build_macro(cls, session: Any, fingerprint: int, paragraph_count: int) -> "StructureIndex":
+        from word_mcp import macroscan
+
+        doc = session.doc()
+        rows = macroscan.scan(session, doc)
+        starts, heading_rows, detail = macroscan.rows_to_shapes(rows)
+        tables, sections, images = cls._summaries(session, doc)
+        return cls(
+            fingerprint,
+            starts,
+            cls._headings(heading_rows, starts, detail),
+            tables,
+            sections,
+            images,
+            paragraph_count,
+        )
+
+    @classmethod
+    def build_com(cls, session: Any, fingerprint: int, paragraph_count: int) -> "StructureIndex":
         doc = session.doc()
         # One guard around the whole pass: a busy Word retries the read rather
         # than raising a raw COM error halfway through.
