@@ -57,12 +57,12 @@ class StructureIndex:
         doc = session.doc()
         # One guard around the whole pass: a busy Word retries the read rather
         # than raising a raw COM error halfway through.
-        starts, heading_rows = session.guard(lambda: cls._read_paragraphs(doc))
+        starts, heading_rows, detail = session.guard(lambda: cls._read_paragraphs(doc))
         tables, sections, images = cls._summaries(session, doc)
         return cls(
             fingerprint,
             starts,
-            cls._headings(heading_rows),
+            cls._headings(heading_rows, starts, detail),
             tables,
             sections,
             images,
@@ -70,37 +70,45 @@ class StructureIndex:
         )
 
     @staticmethod
-    def _read_paragraphs(doc: Any) -> tuple[list[int], list[tuple[int, int, Any]]]:
-        """One pass: every paragraph's start offset, and the headings among them."""
+    def _read_paragraphs(
+        doc: Any,
+    ) -> tuple[list[int], list[tuple[int, int, Any]], dict[int, tuple[str, str, int]]]:
+        """One pass: starts, heading rows, plus heading detail by para index."""
         starts: list[int] = []
         heading_rows: list[tuple[int, int, Any]] = []
+        detail: dict[int, tuple[str, str, int]] = {}
         for para in raw_items(doc.Paragraphs):
             rng = PARAGRAPH.get(para, "Range")
             start = RANGE.get(rng, "Start")
             level = int(PARAGRAPH.get(para, "OutlineLevel"))
+            idx = len(starts)
             starts.append(start)
             if level < WD_OUTLINE_BODY_TEXT:
-                heading_rows.append((len(starts) - 1, level, para))
-        return starts, heading_rows
+                heading_rows.append((idx, level, para))
+                end = max(start, RANGE.get(rng, "End") - 1)
+                text = str(RANGE.get(rng, "Text")).strip()
+                style = str(STYLE.get(RANGE.get(rng, "Style"), "NameLocal"))
+                detail[idx] = (text, style, end)
+        return starts, heading_rows, detail
 
     @staticmethod
-    def _headings(rows: list[tuple[int, int, Any]]) -> list[Heading]:
+    def _headings(
+        rows: list[tuple[int, int, Any]],
+        starts: list[int],
+        detail: dict[int, tuple[str, str, int]],
+    ) -> list[Heading]:
         headings: list[Heading] = []
         stack: list[Heading] = []
-        for _, level, para in rows:
-            rng = PARAGRAPH.get(para, "Range")
+        for idx, level, _para in rows:
             while stack and stack[-1].level >= level:
                 stack.pop()
-            start = RANGE.get(rng, "Start")
-            # A paragraph's range includes its paragraph mark. The heading's range
-            # stops before it, so a token for a heading covers the heading and not
-            # the break: deleting it must not merge the next paragraph into it.
-            end = max(start, RANGE.get(rng, "End") - 1)
+            start = starts[idx]
+            text, style, end = detail[idx]
             headings.append(
                 Heading(
                     level=level,
-                    style=STYLE.get(RANGE.get(rng, "Style"), "NameLocal"),
-                    text=RANGE.get(rng, "Text").strip(),
+                    style=style,
+                    text=text,
                     start=start,
                     end=end,
                     path=" > ".join(h.text for h in stack),
@@ -111,35 +119,33 @@ class StructureIndex:
 
     @staticmethod
     def _summaries(session: Any, doc: Any) -> tuple[list[dict], list[dict], list[dict]]:
-        tables = [
-            {
-                "table": index,
-                "rows": int(session.guard(lambda t=table: t.Rows.Count)),
-                "columns": int(session.guard(lambda t=table: t.Columns.Count)),
-            }
-            for index, table in enumerate(session.guard(lambda: list(doc.Tables)), start=1)
-        ]
-        sections = [
-            {
-                "section": index,
-                "page_width": float(session.guard(lambda s=section: s.PageSetup.PageWidth)),
-                "page_height": float(session.guard(lambda s=section: s.PageSetup.PageHeight)),
-                "orientation": int(session.guard(lambda s=section: s.PageSetup.Orientation)),
-            }
-            for index, section in enumerate(session.guard(lambda: list(doc.Sections)), start=1)
-        ]
-        images = [
-            {
-                "inline_shape": index,
-                "type": int(session.guard(lambda s=shape: s.Type)),
-                "caption_paragraph": session.guard(
-                    lambda s=shape: s.Range.Paragraphs(1).Range.Text.strip()
-                ),
-            }
-            for index, shape in enumerate(
-                session.guard(lambda: list(doc.InlineShapes)), start=1
+        tables_raw = session.guard(lambda: raw_items(doc.Tables))
+        tables = []
+        for index, table in enumerate(tables_raw, start=1):
+            def _t(t=table):
+                return (int(t.Rows.Count), int(t.Columns.Count))
+
+            rows, cols = session.guard(_t)
+            tables.append({"table": index, "rows": rows, "columns": cols})
+        sections_raw = session.guard(lambda: raw_items(doc.Sections))
+        sections = []
+        for index, section in enumerate(sections_raw, start=1):
+            def _s(s=section):
+                ps = s.PageSetup
+                return (float(ps.PageWidth), float(ps.PageHeight), int(ps.Orientation))
+
+            w, h, o = session.guard(_s)
+            sections.append(
+                {"section": index, "page_width": w, "page_height": h, "orientation": o}
             )
-        ]
+        shapes_raw = session.guard(lambda: raw_items(doc.InlineShapes))
+        images = []
+        for index, shape in enumerate(shapes_raw, start=1):
+            def _i(s=shape):
+                return (int(s.Type), str(s.Range.Paragraphs(1).Range.Text.strip()))
+
+            typ, cap = session.guard(_i)
+            images.append({"inline_shape": index, "type": typ, "caption_paragraph": cap})
         return tables, sections, images
 
     def paragraph_index(self, offset: int) -> int:
