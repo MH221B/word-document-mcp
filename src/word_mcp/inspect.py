@@ -59,6 +59,7 @@ def match_from_range(
     index: Any,
     paragraphs: list,
     container: str = "body",
+    need_style: bool = True,
 ) -> Match:
     """Wrap a Word range as a Match and register an anchor token for it.
 
@@ -72,12 +73,13 @@ def match_from_range(
     else:
         paragraph_index, path, _ = paragraph_context(session, handle, paragraphs)
     text = str(session.guard(lambda: handle.Text)).replace("\r", "").replace("\x07", "")
+    style = str(session.guard(lambda: handle.Style.NameLocal)) if need_style else ""
     match = Match(
         token="",
         text=text,
         paragraph_index=paragraph_index,
         heading_path=path,
-        style=str(session.guard(lambda: handle.Style.NameLocal)),
+        style=style,
         container=container,
         snippet=text[:80],
         handle=handle,
@@ -120,12 +122,19 @@ def document_outline(session, depth: int = 9, refresh: bool = False) -> dict:
         session.invalidate_index()
     doc = session.doc()
     index = session.index()
-    if index.anchors is None or len(index.anchors) != len(index.headings):
-        index.anchors = _mint_anchors(session, doc, index)
+    kept = [n for n, h in enumerate(index.headings) if h.level <= depth]
+    if (
+        index.anchors is None
+        or index.anchor_depth != depth
+        or len(index.anchors) != len(kept)
+    ):
+        full = _mint_anchors(session, doc, index)
+        index.anchors = [full[n] for n in kept]
+        index.anchor_depth = depth
     headings = []
-    for heading, (token, handle) in zip(index.headings, index.anchors):
-        if heading.level > depth:
-            continue
+    for pos, n in enumerate(kept):
+        heading = index.headings[n]
+        token, handle = index.anchors[pos]
         headings.append(
             {"level": heading.level, **_heading_match(index, heading, handle, token).describe()}
         )
@@ -226,21 +235,27 @@ def find_all(session, spec: TargetSpec, stop_after: int | None = None) -> list[M
     # list; the body answers from the index instead of enumerating paragraphs.
     index = session.index() if spec.container == "body" else None
     paragraphs = [] if index is not None else session.guard(lambda: list(host.Paragraphs))
-    find = session.guard(lambda: host.Find)
-    session.guard(lambda: setattr(find, "Text", spec.text or ""))
-    session.guard(lambda: setattr(find, "Forward", True))
-    session.guard(lambda: setattr(find, "Wrap", 0))  # wdFindStop
-    session.guard(lambda: setattr(find, "MatchCase", spec.match_case))
-    session.guard(lambda: setattr(find, "MatchWildcards", spec.wildcards))
-    if spec.style:
-        session.guard(lambda: setattr(find, "Style", spec.style))
+    def _setup():
+        find = host.Find
+        find.Text = spec.text or ""
+        find.Forward = True
+        find.Wrap = 0  # wdFindStop
+        find.MatchCase = spec.match_case
+        find.MatchWildcards = spec.wildcards
+        if spec.style:
+            find.Style = spec.style
+        return find
+
+    find = session.guard(_setup)
     found: list[Match] = []
     while session.guard(lambda: bool(find.Execute())):
         # Word redefines the searched range to the match, so Duplicate it before
         # the next Execute moves it on. doc.Range() would map these offsets into
         # the body and lose the match inside a header or footer.
         rng = session.guard(lambda: find.Parent.Duplicate)
-        found.append(match_from_range(session, rng, index, paragraphs, spec.container))
+        found.append(
+            match_from_range(session, rng, index, paragraphs, spec.container, bool(spec.style))
+        )
         if stop_after is not None and len(found) >= stop_after:
             break
         if len(found) >= MAX_CANDIDATES:

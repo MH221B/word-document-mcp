@@ -53,6 +53,8 @@ class StructureIndex:
         # Minted on the first document_outline: one (token, handle) per heading.
         # Live Word ranges move with the document, so a patched index keeps them.
         self.anchors: list[tuple[str, Any]] | None = None
+        # Depth the cached anchors were minted for; a new depth re-mints.
+        self.anchor_depth: int | None = None
 
     @classmethod
     def build(cls, session: Any, fingerprint: int, paragraph_count: int) -> "StructureIndex":
