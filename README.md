@@ -63,9 +63,12 @@ executed in this environment, with the behaviour to expect.
   Expected: the tool reports a conflict rather than retrying forever. Not run:
   no co-authored document with a second author lock was available.
 - Reads are cached per document version. On a 1,616-paragraph, 42-table document
-  the first `document_outline` takes about 23 seconds and every later call on the
+  the first `document_outline` takes about 5 seconds through the batched VBA scan
+  and about 11 seconds through plain COM, with every later call on the
   unchanged document about 0.006 seconds; the first `inspect_document` takes about
-  3.4 seconds and a repeat about 0.002 seconds. `find_text` pays Word's scan plus
+  1.2 seconds and a repeat about 0.002 seconds. The VBA scan needs Trust access
+  to the VBA project object model in Word; without it the server silently uses
+  COM instead. `find_text` pays Word's scan plus
   about 120 ms per match it returns, so `limit=5` takes about 0.7 seconds and
   `limit=20` about 1.8 seconds rather than visiting all 47 matches. An edit that
   can describe what it changed patches the cached index in place, so the read
