@@ -68,9 +68,10 @@ class StructureIndex:
         from word_mcp import macroscan
 
         doc = session.doc()
-        rows = macroscan.scan(session, doc)
-        starts, heading_rows, detail = macroscan.rows_to_shapes(rows)
-        tables, sections, images = cls._summaries(session, doc)
+        raw = macroscan.scan(session, doc)
+        starts, heading_rows, detail, tables, sections, images = (
+            macroscan.shapes_from_scan(raw)
+        )
         return cls(
             fingerprint,
             starts,
