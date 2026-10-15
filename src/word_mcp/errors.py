@@ -64,6 +64,23 @@ class InvalidArgument(WordMcpError):
     code = "invalid_argument"
 
 
+class MacrosUnavailable(WordMcpError):
+    code = "macros_unavailable"
+
+
+_MACRO_DENIED = (
+    "6068",
+    "programmatic access",
+    "macros in this project are disabled",
+    "macro cannot be run",
+)
+
+
+def _is_macro_denial(exc: BaseException) -> bool:
+    text = str(exc).casefold()
+    return any(m in text for m in _MACRO_DENIED)
+
+
 def map_com_error(exc: BaseException) -> WordMcpError:
     """Map a pywin32 com_error to a domain error."""
     hresult = getattr(exc, "hresult", None)
@@ -74,4 +91,9 @@ def map_com_error(exc: BaseException) -> WordMcpError:
         return WordBusy("Word is busy; usually mid-edit or behind a dialog.")
     if hresult == RPC_E_DISCONNECTED:
         return WordDisconnected("Word closed or the document was closed.")
+    if _is_macro_denial(exc):
+        return MacrosUnavailable(
+            "Word refused the macro path. Enable Trust access to the VBA "
+            "project object model, or keep using the COM path."
+        )
     return WordMcpError(f"Word returned an error: {exc}")
