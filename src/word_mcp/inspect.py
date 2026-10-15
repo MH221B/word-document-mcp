@@ -12,7 +12,7 @@ from word_mcp.addressing import (
     choose,
     normalise,
 )
-from word_mcp.comfast import STYLE
+from word_mcp.comfast import STYLE, raw_items
 from word_mcp.errors import InvalidArgument
 from word_mcp.session import story_range
 
@@ -284,48 +284,51 @@ def inspect_document(session, refresh: bool = False) -> dict:
 
 def _read_inventory(session) -> dict:
     doc = session.doc()
-    styles = [
-        {
-            "name": str(session.guard(lambda s=style: STYLE.get(s, "NameLocal"))),
-            "built_in": bool(session.guard(lambda s=style: STYLE.get(s, "BuiltIn"))),
-            "type": int(session.guard(lambda s=style: STYLE.get(s, "Type"))),
-            "in_use": bool(session.guard(lambda s=style: STYLE.get(s, "InUse"))),
-        }
-        for style in session.guard(lambda: list(doc.Styles))
-    ]
-    comments = [
-        {
-            "index": i,
-            "author": str(session.guard(lambda c=comment: c.Author)),
-            "text": str(session.guard(lambda c=comment: c.Range.Text)),
-            "done": bool(session.guard(lambda c=comment: c.Done)),
-            "scope": str(session.guard(lambda c=comment: c.Scope.Text))[:120],
-        }
-        for i, comment in enumerate(session.guard(lambda: list(doc.Comments)), start=1)
-    ]
-    revisions = [
-        {
-            "index": i,
-            "type": int(session.guard(lambda r=rev: r.Type)),
-            "author": str(session.guard(lambda r=rev: r.Author)),
-            "text": str(session.guard(lambda r=rev: r.Range.Text))[:120],
-        }
-        for i, rev in enumerate(session.guard(lambda: list(doc.Revisions)), start=1)
-    ]
-    bookmarks = [
-        str(session.guard(lambda b=bm: b.Name))
-        for bm in session.guard(lambda: list(doc.Bookmarks))
-    ]
-    controls = [
-        {
-            "index": i,
-            "type": int(session.guard(lambda c=cc: c.Type)),
-            "tag": str(session.guard(lambda c=cc: c.Tag)),
-            "title": str(session.guard(lambda c=cc: c.Title)),
-            "text": str(session.guard(lambda c=cc: c.Range.Text))[:120],
-        }
-        for i, cc in enumerate(session.guard(lambda: list(doc.ContentControls)), start=1)
-    ]
+    styles_raw = session.guard(lambda: raw_items(doc.Styles))
+    styles = []
+    for style in styles_raw:
+        def _st(s=style):
+            return (
+                str(STYLE.get(s, "NameLocal")),
+                bool(STYLE.get(s, "BuiltIn")),
+                int(STYLE.get(s, "Type")),
+                bool(STYLE.get(s, "InUse")),
+            )
+
+        name, built_in, typ, in_use = session.guard(_st)
+        styles.append({"name": name, "built_in": built_in, "type": typ, "in_use": in_use})
+    comments_raw = session.guard(lambda: raw_items(doc.Comments))
+    comments = []
+    for i, comment in enumerate(comments_raw, start=1):
+        def _cm(c=comment):
+            return (str(c.Author), str(c.Range.Text), bool(c.Done), str(c.Scope.Text)[:120])
+
+        author, text, done, scope = session.guard(_cm)
+        comments.append(
+            {"index": i, "author": author, "text": text, "done": done, "scope": scope}
+        )
+    revs_raw = session.guard(lambda: raw_items(doc.Revisions))
+    revisions = []
+    for i, rev in enumerate(revs_raw, start=1):
+        def _rv(r=rev):
+            return (int(r.Type), str(r.Author), str(r.Range.Text)[:120])
+
+        typ, author, text = session.guard(_rv)
+        revisions.append({"index": i, "type": typ, "author": author, "text": text})
+    bms_raw = session.guard(lambda: raw_items(doc.Bookmarks))
+    bookmarks = []
+    for bm in bms_raw:
+        bookmarks.append(str(session.guard(lambda b=bm: b.Name)))
+    ccs_raw = session.guard(lambda: raw_items(doc.ContentControls))
+    controls = []
+    for i, cc in enumerate(ccs_raw, start=1):
+        def _cc(c=cc):
+            return (int(c.Type), str(c.Tag), str(c.Title), str(c.Range.Text)[:120])
+
+        typ, tag, title, text = session.guard(_cc)
+        controls.append(
+            {"index": i, "type": typ, "tag": tag, "title": title, "text": text}
+        )
     # doc.UpdateStylesOnOpen is one of the unverified members flagged in the spec.
     # If it raises, drop that key rather than failing the whole tool.
     try:
