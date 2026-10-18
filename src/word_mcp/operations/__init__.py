@@ -88,11 +88,15 @@ def insert_caption(session, host, label: str, title: str, position: str) -> dict
 
 
 def pick(session, collection, index: int, what: str, key: str):
-    """The `index`-th item of a collection, or TargetNotFound."""
-    items = session.guard(lambda: list(collection))
-    if index < 1 or index > len(items):
-        raise TargetNotFound(f"There is no {what} {index}.", **{key: len(items)})
-    return items[index - 1]
+    """The `index`-th item of a collection, or TargetNotFound.
+
+    Word collections are 1-based and indexable, so this is two round-trips
+    instead of one per item.
+    """
+    count = int(session.guard(lambda: collection.Count))
+    if index < 1 or index > count:
+        raise TargetNotFound(f"There is no {what} {index}.", **{key: count})
+    return session.guard(lambda: collection(index))
 
 
 def note_span(session, rng) -> None:
