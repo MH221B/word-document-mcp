@@ -197,6 +197,12 @@ def edit_content_controls(
         return {"inserted": control_type, "tag": tag, "title": title, "at": match.describe()}
 
     if action == "list":
+        # Reuse the cached inventory when it is warm. Reading the whole inventory
+        # cold just to list controls would cost more than the controls do, so fall
+        # back to reading the collection directly.
+        cached = session.inventory()
+        if cached is not None:
+            return {"content_controls": cached["content_controls"]}
         controls = session.guard(lambda: list(doc.ContentControls))
         return {
             "content_controls": [
