@@ -189,13 +189,13 @@ def edit_page_layout(
 ) -> dict:
     doc = session.doc()
     session.require_writable()
-    sections = session.guard(lambda: list(doc.Sections))
-    if section < 1 or section > len(sections):
-        raise InvalidArgument(f"Section {section} is out of range.", sections=len(sections))
-    target_section = sections[section - 1]
-    setup = session.guard(lambda: target_section.PageSetup)
+    count = int(session.guard(lambda: doc.Sections.Count))
+    if section < 1 or section > count:
+        raise InvalidArgument(f"Section {section} is out of range.", sections=count)
+    target_section = session.guard(lambda: doc.Sections(section))
 
     if action == "page_setup":
+        setup = session.guard(lambda: target_section.PageSetup)
         if orientation:
             if orientation not in ("portrait", "landscape"):
                 raise InvalidArgument(
@@ -241,6 +241,7 @@ def edit_page_layout(
         return {"side": side, "which": which, "text": text}
 
     if action == "flags":
+        setup = session.guard(lambda: target_section.PageSetup)
         if different_first_page is not None:
             session.guard(lambda: setattr(setup, "DifferentFirstPageHeaderFooter", different_first_page))
         if odd_and_even is not None:
