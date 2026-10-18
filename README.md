@@ -179,8 +179,3 @@ Each item below was checked against the sample document.
   Call `connect_document` to switch.
 - `word_property` is not registered. It was skipped in v1, so no tool reads or
   writes a single document property on its own.
-
-## Registered tools
-
-Verified by listing the tool manager: the server registers 25 tools, and
-`word_property` is not one of them.
