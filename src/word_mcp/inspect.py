@@ -216,7 +216,13 @@ def deviations(session, font: dict, paragraph: dict, style) -> dict:
         style.ParagraphFormat, [p for p in PARA_PROPS if p in paragraph], session
     )
     return {
-        prop: {"direct": value, "style": inherited.get(prop)}
+        prop: {
+            "direct": value,
+            # A font property's style value comes from the style's font, a
+            # paragraph property's from its paragraph format. Reading the font
+            # snapshot for both reported null for every paragraph property.
+            "style": (inherited if prop in font else para_style).get(prop),
+        }
         for prop, value in {**font, **paragraph}.items()
         if prop in {**inherited, **para_style} and value != {**inherited, **para_style}[prop]
     }
