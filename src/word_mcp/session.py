@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,8 +17,10 @@ from word_mcp.errors import (
     DocumentAmbiguous,
     DocumentNotFound,
     InvalidArgument,
+    MacrosUnavailable,
     ProtectedDocument,
     ReadOnlyDocument,
+    WordBusy,
     WordMcpError,
     WordNotRunning,
     map_com_error,
@@ -28,6 +31,7 @@ RETRY_SECONDS = 1.0
 CALL_TIMEOUT_SECONDS = 10.0
 LOOKUP_ATTEMPTS = 3
 LOOKUP_RETRY_SECONDS = 0.5
+MACRO_RETRY_SECONDS = 30.0
 # Word's automation server is gone, still starting, or not registered.
 DEAD_SERVER_CODES = (-2147023174, -2146959355, -2147221021, -2147221164)
 
@@ -62,6 +66,11 @@ class ComWordSession:
         self._end_before: int | None = None
         self._change: tuple[int, int] | None = None
         self._macro_ok: bool | None = None
+        self._macro_denied = False
+        self._macro_retry_after = 0.0
+        self._macro_noted = False
+        self._change_count = 0
+        self._result_range: tuple | None = None
 
     # -- connection ---------------------------------------------------------
 
@@ -181,6 +190,8 @@ class ComWordSession:
         self._info = self._info_for(self._doc)
         self._index = None
         self._inventory = None
+        self._macro_ok = None
+        self._macro_retry_after = 0.0
         return self._info
 
     def unpin(self) -> None:
@@ -234,19 +245,49 @@ class ComWordSession:
         self._inventory = payload
 
     def macro_available(self) -> bool:
-        """Whether the batched VBA scan may run. Probed once, then cached."""
-        if self._macro_ok is None:
-            try:
-                from word_mcp import macroscan
+        """Whether the batched VBA scan may run. Probed once, then cached.
 
-                self._macro_ok = macroscan.probe(self)
-            except Exception:
-                self._macro_ok = False
+        A denial caches False. Any other failure is treated as transient: it is
+        not cached, and a cooldown keeps a broken probe from running on every
+        build.
+        """
+        if self._macro_ok is not None:
+            return self._macro_ok
+        now = time.monotonic()
+        if now < self._macro_retry_after:
+            return False
+        try:
+            from word_mcp import macroscan
+
+            self._macro_ok = macroscan.probe(self)
+            self._macro_denied = False
+        except MacrosUnavailable:
+            self._macro_ok = False
+            self._macro_denied = True
+            self._note_macro_fallback()
+        except Exception:
+            self._macro_retry_after = now + MACRO_RETRY_SECONDS
+            return False
         return self._macro_ok
 
     def drop_macro(self) -> None:
-        """Forget macro availability after a failed scan."""
+        """Disable the macro path after a confirmed denial."""
         self._macro_ok = False
+        self._macro_denied = True
+        self._note_macro_fallback()
+
+    def macro_denied(self) -> bool:
+        """Whether the macro path was last classified as denied (not transient)."""
+        return self._macro_denied
+
+    def _note_macro_fallback(self) -> None:
+        if self._macro_noted:
+            return
+        self._macro_noted = True
+        print(
+            "word-mcp: VBA trust unavailable; using the slower COM scan.",
+            file=sys.stderr,
+        )
 
     def begin_change(self) -> None:
         """Snapshot the length, so a mutation can be described to the index.
@@ -255,6 +296,7 @@ class ComWordSession:
         which is what happened before this existed.
         """
         self._change = None
+        self._change_count = 0
         self._end_before = None
         if self._index is None:
             return
@@ -266,6 +308,19 @@ class ComWordSession:
     def note_change(self, start: int, end: int) -> None:
         """Record the span a mutating operation changed, in post-edit offsets."""
         self._change = (start, end)
+        self._change_count += 1
+
+    def note_result_range(self, handle: Any, container: str) -> None:
+        """Stash the post-edit range so `mutate` can build `at` after settling."""
+        self._result_range = (handle, container)
+
+    def take_result_range(self) -> tuple | None:
+        out = self._result_range
+        self._result_range = None
+        return out
+
+    def has_index(self) -> bool:
+        return self._index is not None
 
     def settle_index(self) -> None:
         """Patch the cached index if the recorded change verifies, else drop it.
@@ -284,7 +339,7 @@ class ComWordSession:
         index = self._index
         if index is None:
             return
-        if self._change is None or self._end_before is None:
+        if self._change is None or self._end_before is None or self._change_count != 1:
             self.invalidate_index()
             return
         start, end = self._change
@@ -320,7 +375,7 @@ class ComWordSession:
                 mapped = map_com_error(exc)
                 if isinstance(mapped, WordMcpError) and mapped.code == "word_busy":
                     if time.monotonic() >= deadline:
-                        raise WordMcpError(
+                        raise WordBusy(
                             "Word stayed busy for "
                             f"{CALL_TIMEOUT_SECONDS:.0f}s. Close any dialog in Word "
                             "and stop editing, then retry."
