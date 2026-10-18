@@ -126,10 +126,9 @@ def manage_list(
         # level before it is applied, and the value Word actually used is read back.
         template = session.guard(lambda: galleries(3).ListTemplates(1))  # wdNumberGallery
         levels = session.guard(lambda: template.ListLevels)
-        if level < 1 or level > int(session.guard(lambda: levels.Count)):
-            raise InvalidArgument(
-                f"Level {level} is out of range.", levels=int(session.guard(lambda: levels.Count))
-            )
+        level_count = int(session.guard(lambda: levels.Count))
+        if level < 1 or level > level_count:
+            raise InvalidArgument(f"Level {level} is out of range.", levels=level_count)
         session.guard(lambda: setattr(levels(level), "StartAt", start_at))
         session.guard(lambda: rng.ListFormat.ApplyListTemplateWithLevel(
             ListTemplate=template,
