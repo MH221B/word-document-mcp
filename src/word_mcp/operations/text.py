@@ -5,7 +5,6 @@ from __future__ import annotations
 from word_mcp.errors import InvalidArgument, WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import check_format_mode, gate_delete, gate_range, note_span
-from word_mcp.session import require_writable
 
 
 def edit_text(
@@ -22,7 +21,7 @@ def edit_text(
 ) -> dict:
     check_format_mode(format_mode)
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
     before = str(session.guard(lambda: rng.Text))
@@ -147,7 +146,7 @@ def format_text(
     confirm: bool = False,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
     note_span(session, rng)

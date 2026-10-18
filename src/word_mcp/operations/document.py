@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument
 from word_mcp.history import ChangeStack, revert
-from word_mcp.session import require_writable
 
 
 def revert_change(session, stack: ChangeStack, operation_id: int) -> dict:
@@ -14,7 +13,7 @@ def revert_change(session, stack: ChangeStack, operation_id: int) -> dict:
 
 def save_document(session) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     session.guard(lambda: doc.Save())
     return {"saved": session.pinned().__dict__}
 
@@ -24,7 +23,7 @@ BUILT_IN_ALLOWED = {"Title", "Author", "Subject", "Category", "Comments", "Keywo
 
 def set_document_properties(session, properties: dict) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     applied = {}
     for name, value in properties.items():
         if name in BUILT_IN_ALLOWED:

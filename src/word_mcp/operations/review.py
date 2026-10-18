@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, TargetNotFound
 from word_mcp.operations import require_confirm
-from word_mcp.session import require_writable
 
 
 def edit_annotations(
@@ -19,7 +18,7 @@ def edit_annotations(
     confirm: bool = False,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "add_comment":
         if not text:

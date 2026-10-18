@@ -5,7 +5,6 @@ from __future__ import annotations
 from word_mcp.errors import InvalidArgument, WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import gate_range, note_span
-from word_mcp.session import require_writable
 
 WD_STYLE_PARAGRAPH = 1
 WD_STYLE_CHARACTER = 2
@@ -22,9 +21,6 @@ def manage_style(
     formatting: dict | None = None,
     confirm: bool = False,
 ) -> dict:
-    doc = session.doc()
-    require_writable(doc)
-
     if action == "list":
         # Reuse the style inventory inspect_document already builds and caches.
         from word_mcp import inspect
@@ -35,6 +31,9 @@ def manage_style(
                 for s in inspect.inspect_document(session)["styles"]
             ]
         }
+
+    session.require_writable()
+    doc = session.doc()
 
     if action == "create":
         if not name:
@@ -94,7 +93,7 @@ def manage_list(
     confirm: bool = False,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
     note_span(session, rng)

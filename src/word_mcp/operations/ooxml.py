@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument
 from word_mcp.history import ChangeStack
-from word_mcp.session import require_writable
 
 
 def insert_ooxml(
@@ -20,7 +19,7 @@ def insert_ooxml(
     confirm: bool = False,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     if not ooxml.strip().startswith("<"):
         raise InvalidArgument("ooxml must start with an XML element.")
     if "<w:" not in ooxml and "xmlns:w" not in ooxml:
@@ -30,8 +29,8 @@ def insert_ooxml(
     match = resolve(session, spec)
     handle = match.handle
     before = str(session.guard(lambda: handle.Text))
-    change = stack.record("text", "insert ooxml", handle, container=spec.container, text_before=before)
     session.guard(lambda: handle.InsertXML(ooxml))
+    change = stack.record("text", "insert ooxml", handle, container=spec.container, text_before=before)
     return {
         "operation_id": change.op_id,
         "inserted": len(ooxml),

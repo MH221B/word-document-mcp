@@ -5,7 +5,6 @@ from __future__ import annotations
 from word_mcp.errors import InvalidArgument, TargetNotFound
 from word_mcp.history import ChangeStack
 from word_mcp.operations import caption_paragraph, gate_delete, gate_range
-from word_mcp.session import require_writable
 
 WD_CAPTION_ABOVE = 0
 WD_CAPTION_BELOW = 1
@@ -39,7 +38,7 @@ def edit_table(
     confirm: bool = False,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "insert":
         return _insert_table(session, resolve, spec, rows, columns, values)
@@ -216,7 +215,7 @@ def edit_page_layout(
     odd_and_even: bool | None = None,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
     sections = session.guard(lambda: list(doc.Sections))
     if section < 1 or section > len(sections):
         raise InvalidArgument(f"Section {section} is out of range.", sections=len(sections))
@@ -289,7 +288,7 @@ def edit_fields(
     toc_options: dict | None = None,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "insert":
         match = resolve(session, spec)

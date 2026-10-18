@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, TargetNotFound
-from word_mcp.session import require_writable
 from word_mcp.operations import caption_paragraph
 
 WD_WRAP_INLINE = 0
@@ -35,7 +34,7 @@ def edit_media(
     position: str = "below",
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "insert":
         if not path:
@@ -119,7 +118,7 @@ def _caption_image(session, shape, label: str, title: str, position: str) -> dic
 
 def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "hyperlink":
         address = kwargs.get("address", "")
@@ -196,7 +195,7 @@ def edit_content_controls(
     items: list | None = None,
 ) -> dict:
     doc = session.doc()
-    require_writable(doc)
+    session.require_writable()
 
     if action == "insert":
         if control_type not in CONTROL_TYPES:

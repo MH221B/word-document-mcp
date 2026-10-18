@@ -206,16 +206,33 @@ class ComWordSession:
     def doc(self) -> Any:
         if self._doc is None:
             raise DocumentNotFound("No document is pinned. Call connect_document.")
-        info = self._info_for(self._doc)
-        if info.path != self._info.path:
+        path = str(self.guard(lambda: self._doc.FullName))
+        if path != self._info.path:
             self.unpin()
             raise DocumentNotFound(
                 "The pinned document was renamed or saved elsewhere. "
                 "Call connect_document again.",
                 was=self._info.path,
-                now=info.path,
+                now=path,
             )
         return self._doc
+
+    def require_writable(self) -> None:
+        """Raise unless the pinned document can be edited.
+
+        Uses the info captured at pin time. A document does not become read-only
+        or protected mid-session, and Word rejects the edit itself if it did.
+        """
+        info = self._info
+        if info is None:
+            raise DocumentNotFound("No document is pinned. Call connect_document.")
+        if info.read_only:
+            raise ReadOnlyDocument("The document is open read-only.")
+        if info.protected:
+            raise ProtectedDocument(
+                "The document has editing restrictions enabled.",
+                protection_type=int(self.guard(lambda: self._doc.ProtectionType)),
+            )
 
     def index(self) -> StructureIndex:
         """The structure index for the pinned document.
@@ -426,16 +443,6 @@ class ComWordSession:
             path=doc.FullName,
             read_only=bool(doc.ReadOnly),
             protected=bool(doc.ProtectionType != -1),  # wdNoProtection == -1
-        )
-
-
-def require_writable(doc: Any) -> None:
-    if doc.ReadOnly:
-        raise ReadOnlyDocument("The document is open read-only.")
-    if doc.ProtectionType != -1:
-        raise ProtectedDocument(
-            "The document has editing restrictions enabled.",
-            protection_type=int(doc.ProtectionType),
         )
 
 
