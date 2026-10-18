@@ -159,13 +159,14 @@ class ComWordSession:
         return infos
 
     def pin(self, key: str) -> DocumentInfo:
-        matches: list[tuple[Any, Any]] = []
+        matches: list[tuple[Any, DocumentInfo]] = []
         open_names: list[str] = []
         for app in self.applications():
             for doc in self._documents_of(app):
-                open_names.append(self._info_for(doc).name)
-                if self._same(doc, key):
-                    matches.append((app, doc))
+                info = self._info_for(doc)
+                open_names.append(info.name)
+                if self._same(info, key):
+                    matches.append((doc, info))
         if not matches:
             raise DocumentNotFound(
                 f"No open document matches {key!r}.", open=open_names
@@ -173,10 +174,10 @@ class ComWordSession:
         if len(matches) > 1:
             raise DocumentAmbiguous(
                 f"{key!r} matches more than one open document.",
-                candidates=[self._info_for(doc).name for _, doc in matches],
+                candidates=[info.name for _, info in matches],
             )
-        self._doc = matches[0][1]
-        self._info = self._info_for(self._doc)
+        self._doc = matches[0][0]
+        self._info = matches[0][1]
         self._index = None
         self._inventory = None
         self._macro_ok = None
@@ -451,11 +452,11 @@ class ComWordSession:
             return (0, 0, 0)
 
     @staticmethod
-    def _same(doc: Any, key: str) -> bool:
+    def _same(info: DocumentInfo, key: str) -> bool:
         wanted = key.replace("\\", "/").casefold()
         return (
-            doc.FullName.replace("\\", "/").casefold().endswith(wanted)
-            or doc.Name.casefold() == key.casefold()
+            info.path.replace("\\", "/").casefold().endswith(wanted)
+            or info.name.casefold() == key.casefold()
         )
 
     @staticmethod
