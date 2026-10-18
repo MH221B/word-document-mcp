@@ -9,6 +9,12 @@ from typing import Any
 import win32com.client
 
 from word_mcp.comfast import PARAGRAPH, RANGE, STYLE, raw_items
+from word_mcp.errors import (
+    MacrosUnavailable,
+    WordBusy,
+    WordDisconnected,
+    WordNotRunning,
+)
 
 WD_OUTLINE_BODY_TEXT = 10
 
@@ -39,6 +45,7 @@ class StructureIndex:
         sections: list[dict],
         images: list[dict],
         paragraph_count: int = 0,
+        source: str = "com",
     ) -> None:
         self.fingerprint = fingerprint
         self.paragraph_starts = paragraph_starts
@@ -50,6 +57,7 @@ class StructureIndex:
         # The paragraph count is the guard that catches an edit which added or
         # removed a paragraph mark, which would invalidate the whole offset shift.
         self.paragraph_count = paragraph_count
+        self.source = source
         # Minted on the first document_outline: one (token, handle) per heading.
         # Live Word ranges move with the document, so a patched index keeps them.
         self.anchors: list[tuple[str, Any]] | None = None
@@ -61,8 +69,12 @@ class StructureIndex:
         if session.macro_available():
             try:
                 return cls.build_macro(session, fingerprint, paragraph_count)
+            except MacrosUnavailable:
+                session.drop_macro()
+            except (WordBusy, WordDisconnected, WordNotRunning):
+                raise  # a stuck or gone Word should surface, not silently downgrade
             except Exception:
-                session.drop_macro()  # ponytail: same output via COM at old speed
+                pass  # a scan fault: fall back this once, keep the macro path
         return cls.build_com(session, fingerprint, paragraph_count)
 
     @classmethod
@@ -82,6 +94,7 @@ class StructureIndex:
             sections,
             images,
             paragraph_count,
+            source="vba",
         )
 
     @classmethod
