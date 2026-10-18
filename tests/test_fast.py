@@ -221,3 +221,73 @@ def test_macro_denial_is_cached(monkeypatch):
     assert session.macro_available() is False
     assert calls["n"] == 1
     assert session.macro_denied() is True
+
+
+def test_pick_indexes_instead_of_enumerating():
+    from word_mcp.errors import TargetNotFound
+    from word_mcp.operations import pick
+
+    class _Session:
+        def guard(self, fn):
+            return fn()
+
+    class _Collection:
+        Count = 3
+
+        def __call__(self, index):
+            if index < 1 or index > 3:
+                raise IndexError(index)
+            return f"item-{index}"
+
+        def __iter__(self):
+            raise AssertionError("pick enumerated the collection instead of indexing it")
+
+    session = _Session()
+    assert pick(session, _Collection(), 2, "table", "tables") == "item-2"
+    with pytest.raises(TargetNotFound) as exc:
+        pick(session, _Collection(), 4, "table", "tables")
+    assert exc.value.to_dict()["tables"] == 3
+
+
+def test_doc_validates_once_per_call():
+    from word_mcp import session as session_mod
+    from word_mcp.errors import DocumentNotFound
+
+    session = session_mod.ComWordSession()
+
+    class _Doc:
+        FullName = "C:/tmp/a.docx"
+
+    session._doc = _Doc()
+    session._info = session_mod.DocumentInfo(
+        name="a.docx", path="C:/tmp/a.docx", read_only=False, protected=False
+    )
+    reads = {"n": 0}
+
+    def counting_guard(fn):
+        reads["n"] += 1
+        return fn()
+
+    session.guard = counting_guard
+
+    # Two doc() calls in one tool call cost one FullName read.
+    session.begin_call()
+    assert session.doc() is session._doc
+    assert session.doc() is session._doc
+    assert reads["n"] == 1
+
+    # A renamed document still fails the first doc() of the next call.
+    session._doc.FullName = "C:/tmp/b.docx"
+    session.begin_call()
+    with pytest.raises(DocumentNotFound):
+        session.doc()
+
+
+def test_doc_raises_when_unpinned():
+    from word_mcp import session as session_mod
+    from word_mcp.errors import DocumentNotFound
+
+    session = session_mod.ComWordSession()
+    session.begin_call()
+    with pytest.raises(DocumentNotFound):
+        session.doc()
