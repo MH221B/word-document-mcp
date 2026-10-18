@@ -384,13 +384,15 @@ class ComWordSession:
 
     def guard(self, fn: Callable[[], T]) -> T:
         """Run a COM call, retrying while Word reports itself busy."""
-        deadline = time.monotonic() + CALL_TIMEOUT_SECONDS
+        deadline: float | None = None
         while True:
             try:
                 return fn()
             except com_error as exc:
                 mapped = map_com_error(exc)
                 if isinstance(mapped, WordMcpError) and mapped.code == "word_busy":
+                    if deadline is None:
+                        deadline = time.monotonic() + CALL_TIMEOUT_SECONDS
                     if time.monotonic() >= deadline:
                         raise WordBusy(
                             "Word stayed busy for "

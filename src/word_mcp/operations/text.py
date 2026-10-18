@@ -18,6 +18,7 @@ def edit_text(
     format_mode: str = "inherit",
     formatting: dict | None = None,
     confirm: bool = False,
+    tracked: bool | None = None,
 ) -> dict:
     check_format_mode(format_mode)
     check_formatting_keys(formatting)
@@ -29,12 +30,16 @@ def edit_text(
     if action == "insert":
         gate_range(len(text), confirm)
         return _insert(
-            session, stack, doc, rng, text, position, format_mode, formatting, spec.container
+            session, stack, doc, rng, text, position, format_mode, formatting, spec.container,
+            tracked,
         )
     before = str(session.guard(lambda: rng.Text))
     if action == "replace":
         gate_delete(before, confirm)
-        return _replace(session, stack, doc, rng, text, before, format_mode, formatting, spec.container)
+        return _replace(
+            session, stack, doc, rng, text, before, format_mode, formatting, spec.container,
+            tracked,
+        )
     if action == "delete":
         gate_delete(before, confirm)
         session.guard(lambda: rng.Delete())
@@ -43,11 +48,13 @@ def edit_text(
         )
         note_span(session, rng)
         session.note_result_range(rng, spec.container)
-        return _result(change, doc)
+        return _result(change, doc, tracked=tracked)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
 
 
-def _insert(session, stack, doc, rng, text, position, format_mode, formatting, container) -> dict:
+def _insert(
+    session, stack, doc, rng, text, position, format_mode, formatting, container, tracked=None
+) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
     if position in ("end", "start"):
         # Insert through a collapsed copy so the recorded range covers the inserted
@@ -77,10 +84,12 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
     _apply_mode(session, inserted, style_before, format_mode, formatting)
-    return _result(change, doc, style=style_before)
+    return _result(change, doc, style=style_before, tracked=tracked)
 
 
-def _replace(session, stack, doc, rng, text, before, format_mode, formatting, container) -> dict:
+def _replace(
+    session, stack, doc, rng, text, before, format_mode, formatting, container, tracked=None
+) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
@@ -88,7 +97,7 @@ def _replace(session, stack, doc, rng, text, before, format_mode, formatting, co
     note_span(session, fresh)
     session.note_result_range(fresh, container)
     _apply_mode(session, fresh, style_before, format_mode, formatting)
-    return _result(change, doc, style=style_before)
+    return _result(change, doc, style=style_before, tracked=tracked)
 
 
 def _apply_mode(session, rng, style_before, format_mode, formatting) -> None:
@@ -122,13 +131,13 @@ def apply_font(session, rng, formatting: dict) -> None:
         session.guard(lambda t=target, p=prop, v=value: setattr(t, p, v))
 
 
-def _result(change, doc, **extra) -> dict:
+def _result(change, doc, tracked: bool | None = None, **extra) -> dict:
     import json
 
     payload = {
         "operation_id": change.op_id,
         "changed": change.description,
-        "tracked_as_revision": bool(doc.TrackRevisions),
+        "tracked_as_revision": bool(doc.TrackRevisions) if tracked is None else tracked,
         **extra,
     }
     return json.loads(json.dumps(payload, default=str))
@@ -226,6 +235,7 @@ def apply_edits(session, stack, edits: list[dict], resolve, confirm: bool = Fals
     `revert_change` calls.
     """
     applied: list[dict] = []
+    tracked = bool(session.guard(lambda: session.doc().TrackRevisions))
     for i, edit in enumerate(edits):
         try:
             result = edit_text(
@@ -236,6 +246,7 @@ def apply_edits(session, stack, edits: list[dict], resolve, confirm: bool = Fals
                 format_mode=edit.get("format_mode", "inherit"),
                 formatting=edit.get("formatting"),
                 confirm=edit.get("confirm", confirm),
+                tracked=tracked,
             )
         except WordMcpError as exc:
             return {
