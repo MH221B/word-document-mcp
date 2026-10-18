@@ -21,6 +21,7 @@ from word_mcp.errors import (
     ProtectedDocument,
     ReadOnlyDocument,
     WordBusy,
+    WordDisconnected,
     WordMcpError,
     WordNotRunning,
     map_com_error,
@@ -358,6 +359,9 @@ class ComWordSession:
         """
         try:
             self._settle()
+        except (WordDisconnected, WordNotRunning):
+            self.invalidate_index()
+            raise
         except Exception:
             self.invalidate_index()
 

@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from word_mcp.errors import MacrosUnavailable
+from word_mcp.errors import (
+    MacrosUnavailable,
+    WordBusy,
+    WordDisconnected,
+    WordNotRunning,
+)
 
 
 class ScanFailed(Exception):
@@ -118,6 +123,8 @@ def scan(session: Any, doc: Any) -> tuple:
         try:
             raw = session.guard(lambda: app.Run("McpScan.ScanDoc", target))
         except MacrosUnavailable:
+            raise
+        except (WordBusy, WordDisconnected, WordNotRunning):
             raise
         except Exception as exc:
             raise ScanFailed(str(exc)) from exc
