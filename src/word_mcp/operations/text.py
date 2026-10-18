@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from word_mcp.errors import InvalidArgument
+from word_mcp.errors import InvalidArgument, WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import check_format_mode, gate_delete, gate_range, note_span
 from word_mcp.session import require_writable
@@ -40,6 +40,7 @@ def edit_text(
         )
         session.guard(lambda: rng.Delete())
         note_span(session, rng)
+        session.note_result_range(rng, spec.container)
         return _result(change, doc)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
 
@@ -59,6 +60,7 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
             session.guard(lambda: point.InsertBefore(text))
         inserted = session.guard(lambda: point.Duplicate)
         note_span(session, inserted)
+        session.note_result_range(inserted, container)
         change = stack.record(
             "text", f"insert at {position}", inserted, container=container, text_before=""
         )
@@ -67,6 +69,7 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
         session.guard(lambda: setattr(rng, "Text", text))
         inserted = session.guard(lambda: rng.Duplicate)
         note_span(session, inserted)
+        session.note_result_range(inserted, container)
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
     _apply_mode(session, inserted, style_before, format_mode, formatting)
@@ -80,6 +83,7 @@ def _replace(session, stack, doc, rng, text, format_mode, formatting, container)
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
     note_span(session, fresh)
+    session.note_result_range(fresh, container)
     _apply_mode(session, fresh, style_before, format_mode, formatting)
     return _result(change, doc, style=style_before)
 
@@ -145,6 +149,7 @@ def format_text(
     match = resolve(session, spec)
     rng = match.handle
     note_span(session, rng)
+    session.note_result_range(rng, spec.container)
     length = int(session.guard(lambda: rng.End - rng.Start))
     gate_range(length, confirm)
 
@@ -207,3 +212,32 @@ def _capture(session, rng) -> dict:
             continue
         captured[prop] = value
     return captured
+
+
+def apply_edits(session, stack, edits: list[dict], resolve, confirm: bool = False) -> dict:
+    """Apply several text edits in one call. Stops at the first failure.
+
+    A failure is reported under the standard error key so a caller that keys on
+    `error` cannot mistake a half-applied batch for success. Each applied entry
+    carries its own result; recover a partial batch with reverse-order
+    `revert_change` calls.
+    """
+    applied: list[dict] = []
+    for i, edit in enumerate(edits):
+        try:
+            result = edit_text(
+                session, stack, resolve, inspect_spec(edit.get("target", {})),
+                action=edit.get("action", "replace"),
+                text=edit.get("text", ""),
+                position=edit.get("position", "end"),
+                format_mode=edit.get("format_mode", "inherit"),
+                formatting=edit.get("formatting"),
+                confirm=edit.get("confirm", confirm),
+            )
+        except WordMcpError as exc:
+            return {
+                "applied": applied,
+                "error": {"code": "batch_stopped", "index": i, "cause": exc.to_dict()},
+            }
+        applied.append({"index": i, **result})
+    return {"applied": applied, "error": None}

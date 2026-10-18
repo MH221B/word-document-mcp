@@ -37,11 +37,12 @@ def run(fn: Callable[[], Any]) -> str:
 
 
 def mutate(fn: Callable[[], Any]) -> str:
-    """Call a mutating operation, then settle the cached structure index.
+    """Call a mutating operation, settle the index, then attach `at`.
 
     An operation that reported the span it changed patches the index in place; a
-    failed operation, and every operation that cannot describe itself, drops it
-    and the next read rebuilds.
+    failed operation, and every operation that cannot describe itself, drops it.
+    The post-edit anchor is built only when the index survived, so a multi-span
+    batch never triggers a cold rebuild just to describe a range.
     """
     SESSION.begin_change()
     try:
@@ -50,6 +51,10 @@ def mutate(fn: Callable[[], Any]) -> str:
         SESSION.invalidate_index()
         return tool_error(exc)
     SESSION.settle_index()
+    stash = SESSION.take_result_range()
+    if stash is not None and SESSION.has_index():
+        handle, container = stash
+        out["at"] = inspect.anchor(SESSION, handle, container).describe()
     return json.dumps(out, indent=2, default=str)
 
 
@@ -175,6 +180,14 @@ def format_text(
             SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
             action=action, formatting=formatting, source=source, confirm=confirm,
         )
+    return mutate(go)
+
+
+@mcp.tool()
+def apply_edits(edits: list[dict], confirm: bool = False) -> str:
+    """Apply several text edits in one call. Stops at the first failure."""
+    def go():
+        return text_ops.apply_edits(SESSION, HISTORY, edits, inspect.resolve, confirm=confirm)
     return mutate(go)
 
 
