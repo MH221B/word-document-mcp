@@ -15,6 +15,18 @@ def check_format_mode(mode: str) -> str:
     return mode
 
 
+def check_formatting_keys(formatting: dict | None) -> None:
+    """Reject unknown formatting keys before the document is touched."""
+    if not formatting:
+        return
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+
+    known = set(FONT_PROPS) | set(PARA_PROPS)
+    unknown = sorted(k for k in formatting if k not in known)
+    if unknown:
+        raise InvalidArgument(f"Unknown formatting property(ies) {unknown}.", allowed=sorted(known))
+
+
 def gate_delete(text: str, confirm: bool) -> None:
     """Deletions big enough to hurt need an explicit confirm."""
     paragraphs = text.count("\r")

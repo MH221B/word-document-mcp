@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, WordMcpError
 from word_mcp.history import ChangeStack
-from word_mcp.operations import check_format_mode, gate_delete, gate_range, note_span
+from word_mcp.operations import check_format_mode, check_formatting_keys, gate_delete, gate_range, note_span
 
 
 def edit_text(
@@ -20,18 +20,21 @@ def edit_text(
     confirm: bool = False,
 ) -> dict:
     check_format_mode(format_mode)
+    check_formatting_keys(formatting)
     doc = session.doc()
     session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
-    before = str(session.guard(lambda: rng.Text))
 
     if action == "insert":
         gate_range(len(text), confirm)
-        return _insert(session, stack, doc, rng, text, position, format_mode, formatting, spec.container)
+        return _insert(
+            session, stack, doc, rng, text, position, format_mode, formatting, spec.container
+        )
+    before = str(session.guard(lambda: rng.Text))
     if action == "replace":
         gate_delete(before, confirm)
-        return _replace(session, stack, doc, rng, text, format_mode, formatting, spec.container)
+        return _replace(session, stack, doc, rng, text, before, format_mode, formatting, spec.container)
     if action == "delete":
         gate_delete(before, confirm)
         session.guard(lambda: rng.Delete())
@@ -46,7 +49,6 @@ def edit_text(
 
 def _insert(session, stack, doc, rng, text, position, format_mode, formatting, container) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
-    before = str(session.guard(lambda: rng.Text))
     if position in ("end", "start"):
         # Insert through a collapsed copy so the recorded range covers the inserted
         # text alone. Inserting through `rng` itself expands it over the original
@@ -64,6 +66,7 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
             "text", f"insert at {position}", inserted, container=container, text_before=""
         )
     elif position == "replace":
+        before = str(session.guard(lambda: rng.Text))
         session.guard(lambda: setattr(rng, "Text", text))
         inserted = session.guard(lambda: rng.Duplicate)
         change = stack.record(
@@ -77,9 +80,8 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
     return _result(change, doc, style=style_before)
 
 
-def _replace(session, stack, doc, rng, text, format_mode, formatting, container) -> dict:
+def _replace(session, stack, doc, rng, text, before, format_mode, formatting, container) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
-    before = str(session.guard(lambda: rng.Text))
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
     change = stack.record("text", "replace", fresh, container=container, text_before=before)
