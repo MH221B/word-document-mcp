@@ -70,15 +70,17 @@ def manage_style(
 
 
 def _apply_style_formatting(session, style, formatting: dict) -> None:
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+
+    font = set(FONT_PROPS)
+    known = font | set(PARA_PROPS)
     for prop, value in formatting.items():
         if prop == "character_style":
             continue
-        if hasattr(style.Font, prop):
-            session.guard(lambda p=prop, v=value: setattr(style.Font, p, v))
-        elif hasattr(style.ParagraphFormat, prop):
-            session.guard(lambda p=prop, v=value: setattr(style.ParagraphFormat, p, v))
-        else:
+        if prop not in known:
             raise InvalidArgument(f"Unknown style property {prop!r}.")
+        target = style.Font if prop in font else style.ParagraphFormat
+        session.guard(lambda t=target, p=prop, v=value: setattr(t, p, v))
 
 
 def manage_list(

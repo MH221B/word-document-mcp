@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, TargetNotFound
-from word_mcp.operations import caption_paragraph
+from word_mcp.operations import insert_caption, pick
 
 WD_WRAP_INLINE = 0
 WD_WRAP_SQUARE = 1
@@ -13,10 +13,7 @@ WD_WRAP_TOP_BOTTOM = 4
 
 
 def find_inline_shape(session, index: int, doc):
-    shapes = session.guard(lambda: list(doc.InlineShapes))
-    if index < 1 or index > len(shapes):
-        raise TargetNotFound(f"There is no image {index}.", images=len(shapes))
-    return shapes[index - 1]
+    return pick(session, doc.InlineShapes, index, "image", "images")
 
 
 def edit_media(
@@ -93,27 +90,8 @@ def _apply_size(session, shape, width, height) -> None:
 
 def _caption_image(session, shape, label: str, title: str, position: str) -> dict:
     """Insert a caption paragraph next to the image's paragraph."""
-    doc = session.doc()
     para = session.guard(lambda: shape.Range.Paragraphs(1).Range)
-    # Caption the image's own paragraph. InsertCaption adds the caption as its own
-    # paragraph; find that paragraph so it can be styled and its text reported.
-    start = int(session.guard(lambda: para.Start))
-    end = int(session.guard(lambda: para.End))
-    session.guard(
-        lambda: para.InsertCaption(
-            Label=label, Title=title, Position=0 if position == "above" else 1
-        )
-    )
-    caption_para = caption_paragraph(session, doc, start, end, position)
-    session.guard(lambda: setattr(caption_para, "Style", "Caption"))
-    text = str(session.guard(lambda: caption_para.Text)).strip()
-    return {
-        "caption_added": True,
-        "label": label,
-        "title": title,
-        "position": position,
-        "text": text,
-    }
+    return insert_caption(session, para, label, title, position)
 
 
 def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
@@ -233,12 +211,7 @@ def edit_content_controls(
 
     if action == "set_value":
         session.require_writable()
-        controls = session.guard(lambda: list(doc.ContentControls))
-        if control_index < 1 or control_index > len(controls):
-            raise TargetNotFound(
-                f"There is no content control {control_index}.", controls=len(controls)
-            )
-        control = controls[control_index - 1]
+        control = pick(session, doc.ContentControls, control_index, "content control", "controls")
         if session.guard(lambda: control.Type) == WD_CONTENT_CONTROL_CHECKBOX:
             session.guard(lambda: setattr(control, "Checked", value in ("true", "True", "1", "yes")))
         else:

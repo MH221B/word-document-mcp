@@ -1,6 +1,6 @@
 """Shared validation for the operation modules."""
 
-from word_mcp.errors import ConfirmationRequired, InvalidArgument
+from word_mcp.errors import ConfirmationRequired, InvalidArgument, TargetNotFound
 
 DELETE_PARA_THRESHOLD = 1
 DELETE_CHAR_THRESHOLD = 500
@@ -64,6 +64,35 @@ def caption_paragraph(session, doc, start: int, end: int, position: str):
     """
     point = max(end, 0) if position == "below" else max(start, 0)
     return session.guard(lambda: doc.Range(point, point).Paragraphs(1).Range)
+
+
+def insert_caption(session, host, label: str, title: str, position: str) -> dict:
+    """Insert a caption paragraph next to `host` and report its text."""
+    doc = session.doc()
+    start = int(session.guard(lambda: host.Start))
+    end = int(session.guard(lambda: host.End))
+    session.guard(
+        lambda: host.InsertCaption(
+            Label=label, Title=title, Position=0 if position == "above" else 1
+        )
+    )
+    caption_para = caption_paragraph(session, doc, start, end, position)
+    session.guard(lambda: setattr(caption_para, "Style", "Caption"))
+    return {
+        "caption_added": True,
+        "label": label,
+        "title": title,
+        "position": position,
+        "text": str(session.guard(lambda: caption_para.Text)).strip(),
+    }
+
+
+def pick(session, collection, index: int, what: str, key: str):
+    """The `index`-th item of a collection, or TargetNotFound."""
+    items = session.guard(lambda: list(collection))
+    if index < 1 or index > len(items):
+        raise TargetNotFound(f"There is no {what} {index}.", **{key: len(items)})
+    return items[index - 1]
 
 
 def note_span(session, rng) -> None:

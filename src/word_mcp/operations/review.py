@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from word_mcp.errors import InvalidArgument, TargetNotFound
-from word_mcp.operations import require_confirm
+from word_mcp.errors import InvalidArgument
+from word_mcp.operations import pick, require_confirm
 
 
 def edit_annotations(
@@ -80,7 +80,4 @@ def edit_annotations(
 
 
 def _comment(session, doc, index: int):
-    comments = session.guard(lambda: list(doc.Comments))
-    if index < 1 or index > len(comments):
-        raise TargetNotFound(f"There is no comment {index}.", comments=len(comments))
-    return comments[index - 1]
+    return pick(session, doc.Comments, index, "comment", "comments")

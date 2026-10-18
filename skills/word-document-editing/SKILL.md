@@ -69,10 +69,11 @@ edit_text(res["at"]["token"], "insert", text="Page ", position="start")
 
 The footer then reads "Page 1", with the number still a live field.
 
-**Comments and revisions.** `edit_annotations` adds and replies to comments,
-resolves or deletes them, and toggles track changes. Agent edits are not tracked
-unless you call `track_changes` with `mode="on"` first, so do that before a
-review pass when the user wants to accept or reject your work.
+**Comments and revisions.** `edit_annotations` adds, replies to, and deletes
+comments, and toggles track changes. Marking a comment done (`resolve_comment`)
+is not available on this Word build. Agent edits are not tracked unless you call
+`track_changes` with `mode="on"` first, so do that before a review pass when the
+user wants to accept or reject your work.
 
 **Inventory, metadata, and raw XML.** `inspect_document` lists styles, comments,
 revisions, bookmarks, and content controls in one cached call. Use it for a

@@ -124,10 +124,14 @@ def _clear_formatting(session, rng) -> None:
 
 
 def apply_font(session, rng, formatting: dict) -> None:
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+
+    font = set(FONT_PROPS)
+    known = font | set(PARA_PROPS)
     for prop, value in formatting.items():
-        if not hasattr(rng.Font, prop) and not hasattr(rng.ParagraphFormat, prop):
+        if prop not in known:
             raise InvalidArgument(f"Unknown formatting property {prop!r}.")
-        target = rng.Font if hasattr(rng.Font, prop) else rng.ParagraphFormat
+        target = rng.Font if prop in font else rng.ParagraphFormat
         session.guard(lambda t=target, p=prop, v=value: setattr(t, p, v))
 
 
@@ -141,9 +145,6 @@ def _result(change, doc, tracked: bool | None = None, **extra) -> dict:
         **extra,
     }
     return json.loads(json.dumps(payload, default=str))
-
-
-WD_UNDEFINED = 9999999
 
 
 def format_text(
@@ -211,19 +212,12 @@ def _copy_formatting(session, rng, source_handle) -> None:
 
 
 def _capture(session, rng) -> dict:
-    from word_mcp.inspect import FONT_PROPS, PARA_PROPS
+    from word_mcp.inspect import FONT_PROPS, PARA_PROPS, _snapshot
 
-    captured = {}
-    for prop in FONT_PROPS + PARA_PROPS:
-        target = rng.Font if prop in FONT_PROPS else rng.ParagraphFormat
-        try:
-            value = session.guard(lambda t=target, p=prop: getattr(t, p))
-        except Exception:
-            continue
-        if value == WD_UNDEFINED:
-            continue
-        captured[prop] = value
-    return captured
+    return {
+        **_snapshot(rng.Font, FONT_PROPS, session),
+        **_snapshot(rng.ParagraphFormat, PARA_PROPS, session),
+    }
 
 
 def apply_edits(session, stack, edits: list[dict], resolve, confirm: bool = False) -> dict:

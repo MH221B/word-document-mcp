@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-from word_mcp.errors import InvalidArgument, TargetNotFound
+from word_mcp.errors import InvalidArgument
 from word_mcp.history import ChangeStack
-from word_mcp.operations import caption_paragraph
-
-WD_CAPTION_ABOVE = 0
-WD_CAPTION_BELOW = 1
+from word_mcp.operations import insert_caption, pick
 
 
 def find_table(session, table_index: int, doc):
-    tables = session.guard(lambda: list(doc.Tables))
-    if table_index < 1 or table_index > len(tables):
-        raise TargetNotFound(
-            f"There is no table {table_index}.", tables=len(tables)
-        )
-    return tables[table_index - 1]
+    return pick(session, doc.Tables, table_index, "table", "tables")
 
 
 def edit_table(
@@ -154,28 +146,7 @@ def _caption_table(session, table, label: str, title: str, position: str) -> dic
     Word's captions are SEQ fields, so they renumber on their own and a table of
     figures can collect them.
     """
-    doc = session.doc()
-    # Caption the table's own range; InsertCaption adds the caption as its own
-    # paragraph, which is then located so it can be styled and its text reported.
-    start = int(session.guard(lambda: table.Range.Start))
-    end = int(session.guard(lambda: table.Range.End))
-    session.guard(
-        lambda: table.Range.InsertCaption(
-            Label=label,
-            Title=title,
-            Position=WD_CAPTION_BELOW if position == "below" else WD_CAPTION_ABOVE,
-        )
-    )
-    caption_para = caption_paragraph(session, doc, start, end, position)
-    session.guard(lambda: setattr(caption_para, "Style", "Caption"))
-    text = str(session.guard(lambda: caption_para.Text)).strip()
-    return {
-        "caption_added": True,
-        "label": label,
-        "title": title,
-        "position": position,
-        "text": text,
-    }
+    return insert_caption(session, table.Range, label, title, position)
 
 
 WD_ORIENT_PORTRAIT = 0
