@@ -13,7 +13,6 @@ def revert_change(session, stack: ChangeStack, operation_id: int) -> dict:
 
 def save_document(session) -> dict:
     doc = session.doc()
-    session.require_writable()
     session.guard(lambda: doc.Save())
     return {"saved": session.pinned().__dict__}
 

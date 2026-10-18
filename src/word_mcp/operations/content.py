@@ -118,9 +118,9 @@ def _caption_image(session, shape, label: str, title: str, position: str) -> dic
 
 def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
     doc = session.doc()
-    session.require_writable()
 
     if action == "hyperlink":
+        session.require_writable()
         address = kwargs.get("address", "")
         if not address:
             raise InvalidArgument("action='hyperlink' needs an address.")
@@ -137,6 +137,7 @@ def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
         return {"hyperlink": address, "at": match.describe()}
 
     if action == "bookmark_add":
+        session.require_writable()
         name = kwargs.get("name", "")
         if not name:
             raise InvalidArgument("action='bookmark_add' needs a name.")
@@ -153,6 +154,7 @@ def edit_links(session, resolve, action: str, spec=None, **kwargs) -> dict:
         return {"bookmark": name, "text": str(session.guard(lambda: rng.Text))}
 
     if action in ("footnote", "endnote"):
+        session.require_writable()
         text = kwargs.get("text", "")
         match = resolve(session, spec)
         if action == "footnote":
@@ -195,9 +197,9 @@ def edit_content_controls(
     items: list | None = None,
 ) -> dict:
     doc = session.doc()
-    session.require_writable()
 
     if action == "insert":
+        session.require_writable()
         if control_type not in CONTROL_TYPES:
             raise InvalidArgument(f"Unknown control type {control_type!r}.", allowed=sorted(CONTROL_TYPES))
         match = resolve(session, spec)
@@ -214,19 +216,8 @@ def edit_content_controls(
                 session.guard(lambda i=item: control.Add(Text=i, Value=i))
         return {"inserted": control_type, "tag": tag, "title": title, "at": match.describe()}
 
-    controls = session.guard(lambda: list(doc.ContentControls))
-    if control_index < 1 or control_index > len(controls):
-        raise TargetNotFound(f"There is no content control {control_index}.", controls=len(controls))
-    control = controls[control_index - 1]
-
-    if action == "set_value":
-        if session.guard(lambda: control.Type) == WD_CONTENT_CONTROL_CHECKBOX:
-            session.guard(lambda: setattr(control, "Checked", value in ("true", "True", "1", "yes")))
-        else:
-            session.guard(lambda: setattr(control.Range, "Text", value))
-        return {"content_control": control_index, "value": value}
-
     if action == "list":
+        controls = session.guard(lambda: list(doc.ContentControls))
         return {
             "content_controls": [
                 {
@@ -239,5 +230,19 @@ def edit_content_controls(
                 for i, c in enumerate(controls, start=1)
             ]
         }
+
+    if action == "set_value":
+        session.require_writable()
+        controls = session.guard(lambda: list(doc.ContentControls))
+        if control_index < 1 or control_index > len(controls):
+            raise TargetNotFound(
+                f"There is no content control {control_index}.", controls=len(controls)
+            )
+        control = controls[control_index - 1]
+        if session.guard(lambda: control.Type) == WD_CONTENT_CONTROL_CHECKBOX:
+            session.guard(lambda: setattr(control, "Checked", value in ("true", "True", "1", "yes")))
+        else:
+            session.guard(lambda: setattr(control.Range, "Text", value))
+        return {"content_control": control_index, "value": value}
 
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "set_value", "list"])
