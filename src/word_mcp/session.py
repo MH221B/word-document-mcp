@@ -209,11 +209,12 @@ class ComWordSession:
             self._validated = True
             path = str(self.guard(lambda: self._doc.FullName))
             if path != self._info.path:
+                was = self._info.path
                 self.unpin()
                 raise DocumentNotFound(
                     "The pinned document was renamed or saved elsewhere. "
                     "Call connect_document again.",
-                    was=self._info.path,
+                    was=was,
                     now=path,
                 )
         return self._doc
