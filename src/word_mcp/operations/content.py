@@ -76,6 +76,8 @@ def edit_media(
         return {"image": image_index, "wrap": wrap}
 
     if action == "caption":
+        if position not in ("above", "below"):
+            raise InvalidArgument(f"Unknown position {position!r}.", allowed=["above", "below"])
         return _caption_image(session, shape, label, title, position)
 
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "size", "wrap", "caption"])

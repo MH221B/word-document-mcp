@@ -86,6 +86,8 @@ def edit_table(
         return {"table": table_index, "header_row_repeat": True}
 
     if action == "caption":
+        if position not in ("above", "below"):
+            raise InvalidArgument(f"Unknown position {position!r}.", allowed=["above", "below"])
         return _caption_table(session, table, label, title, position)
 
     raise InvalidArgument(
@@ -195,6 +197,10 @@ def edit_page_layout(
 
     if action == "page_setup":
         if orientation:
+            if orientation not in ("portrait", "landscape"):
+                raise InvalidArgument(
+                    f"Unknown orientation {orientation!r}.", allowed=["portrait", "landscape"]
+                )
             value = WD_ORIENT_LANDSCAPE if orientation == "landscape" else WD_ORIENT_PORTRAIT
             session.guard(lambda: setattr(setup, "Orientation", value))
         for key, value in (points or {}).items():
@@ -217,6 +223,8 @@ def edit_page_layout(
         return {"section_break": "continuous" if columns == 0 else "next_page", "at": match.describe()}
 
     if action == "header_footer":
+        if side not in ("header", "footer"):
+            raise InvalidArgument(f"Unknown side {side!r}.", allowed=["header", "footer"])
         index = {
             "primary": WD_HEADER_FOOTER_PRIMARY,
             "first_page": WD_HEADER_FOOTER_FIRST_PAGE,

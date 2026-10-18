@@ -103,6 +103,10 @@ def manage_list(
     galleries = session.guard(lambda: session.app().ListGalleries)
 
     if action == "apply":
+        if list_format not in ("bullet", "number"):
+            raise InvalidArgument(
+                f"Unknown list_format {list_format!r}.", allowed=["bullet", "number"]
+            )
         template = session.guard(lambda: galleries(2).ListTemplates(1))  # wdBulletGallery
         if list_format == "number":
             template = session.guard(lambda: galleries(3).ListTemplates(1))  # wdNumberGallery
