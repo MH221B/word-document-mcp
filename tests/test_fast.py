@@ -97,3 +97,25 @@ def test_raw_items_requests_batches():
     items = raw_items(_Collection(), celt=2)
     assert len(items) == 3
     assert seen == [2, 2]
+
+
+def test_manage_style_list_reuses_inventory(monkeypatch):
+    from word_mcp import inspect
+    from word_mcp.operations import styles as styles_ops
+
+    class _Doc:
+        ReadOnly = False
+        ProtectionType = -1
+
+    class _Session:
+        def doc(self):
+            return _Doc()
+
+    monkeypatch.setattr(
+        inspect, "inspect_document",
+        lambda session, refresh=False: {
+            "styles": [{"name": "Normal", "built_in": True, "type": 1, "in_use": True}]
+        },
+    )
+    result = styles_ops.manage_style(_Session(), None, None, action="list")
+    assert result == {"styles": [{"name": "Normal", "built_in": True, "in_use": True}]}

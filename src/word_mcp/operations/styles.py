@@ -26,14 +26,13 @@ def manage_style(
     require_writable(doc)
 
     if action == "list":
+        # Reuse the style inventory inspect_document already builds and caches.
+        from word_mcp import inspect
+
         return {
             "styles": [
-                {
-                    "name": str(session.guard(lambda s=style: s.NameLocal)),
-                    "built_in": bool(session.guard(lambda s=style: s.BuiltIn)),
-                    "in_use": bool(session.guard(lambda s=style: s.InUse)),
-                }
-                for style in session.guard(lambda: list(doc.Styles))
+                {"name": s["name"], "built_in": s["built_in"], "in_use": s["in_use"]}
+                for s in inspect.inspect_document(session)["styles"]
             ]
         }
 
