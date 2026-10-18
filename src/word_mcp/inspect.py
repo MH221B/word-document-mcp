@@ -14,7 +14,7 @@ from word_mcp.addressing import (
     choose,
     normalise,
 )
-from word_mcp.comfast import STYLE, raw_items
+from word_mcp.comfast import PARAGRAPH, RANGE, STYLE, raw_items
 from word_mcp.errors import InvalidArgument
 from word_mcp.session import story_range
 
@@ -27,17 +27,20 @@ def heading_path_of(paragraphs: list, paragraph_index: int) -> str:
     Ancestors are headings with strictly smaller outline levels. A previous
     sibling at the same level is not an ancestor, so the walk starts from the
     described paragraph's own level rather than from body text.
+
+    `paragraphs` are raw IDispatches, so properties go through PARAGRAPH/RANGE.
     """
     if paragraph_index <= 0:
         return ""
-    cap = int(paragraphs[paragraph_index].OutlineLevel)
+    cap = int(PARAGRAPH.get(paragraphs[paragraph_index], "OutlineLevel"))
     parts: list[str] = []
     for i in range(paragraph_index - 1, -1, -1):
         para = paragraphs[i]
-        level = int(para.OutlineLevel)
+        level = int(PARAGRAPH.get(para, "OutlineLevel"))
         if level < cap:
             cap = level
-            parts.insert(0, para.Range.Text.strip())
+            text = RANGE.get(PARAGRAPH.get(para, "Range"), "Text")
+            parts.insert(0, str(text).strip())
             if level == 1:
                 break
     return " > ".join(parts)
@@ -45,11 +48,16 @@ def heading_path_of(paragraphs: list, paragraph_index: int) -> str:
 
 def paragraph_context(session, rng: Any, paragraphs: list) -> tuple[int, str, str]:
     """Paragraph index, heading path, and style for a range, within its own story."""
+    point = int(session.guard(lambda: RANGE.get(rng, "Start")))
     for i, para in enumerate(paragraphs):
-        para_range = session.guard(lambda p=para: p.Range)
-        if session.guard(lambda r=para_range: r.Start <= rng.Start < r.End):
-            style = str(session.guard(lambda p=para: p.Range.Style.NameLocal))
-            return i, heading_path_of(paragraphs, i), style
+        para_range = session.guard(lambda p=para: PARAGRAPH.get(p, "Range"))
+        start = int(session.guard(lambda r=para_range: RANGE.get(r, "Start")))
+        end = int(session.guard(lambda r=para_range: RANGE.get(r, "End")))
+        if start <= point < end:
+            style = session.guard(
+                lambda r=para_range: STYLE.get(RANGE.get(r, "Style"), "NameLocal")
+            )
+            return i, heading_path_of(paragraphs, i), str(style)
     return -1, "", ""
 
 
@@ -100,7 +108,7 @@ def anchor(session, handle, container: str = "body") -> Match:
     else:
         index = None
         host = story_range(session.doc(), container)
-        paragraphs = session.guard(lambda: list(host.Paragraphs))
+        paragraphs = session.guard(lambda: raw_items(host.Paragraphs))
     return match_from_range(session, handle, index, paragraphs, container)
 
 
@@ -263,7 +271,7 @@ def find_all(session, spec: TargetSpec, stop_after: int | None = None) -> list[M
     # A header or footer has its own offset space, so it keeps its own paragraph
     # list; the body answers from the index instead of enumerating paragraphs.
     index = session.index() if spec.container == "body" else None
-    paragraphs = [] if index is not None else session.guard(lambda: list(host.Paragraphs))
+    paragraphs = [] if index is not None else session.guard(lambda: raw_items(host.Paragraphs))
     def _setup():
         find = host.Find
         find.Text = spec.text or ""
