@@ -51,17 +51,14 @@ Manual checks. These need a human at the keyboard, so they are recorded as not
 executed in this environment, with the behaviour to expect.
 
 - Modal dialog open in Word (for example File > Options) while a tool is called.
-  Expected: a `word_busy` error naming the dialog after the ~10s call timeout,
-  not a hang. Not run: opening the dialog blocks the COM server and needs a
-  human to leave it open mid-call.
+  Expected: a `word_busy` error after the ~10s call timeout, not a hang. Not run:
+  opening the dialog blocks the COM server and needs a human to leave it open
+  mid-call.
 - Word killed while a tool call is in flight.
-  Expected: a `word_disconnected` (or `word_not_running` on reconnect) error, and
-  the session reports no pinned document. Not run: the Word instances on this
-  machine also hold unrelated open documents, and killing them would risk that
-  work.
-- A co-authored document with another author holding a lock.
-  Expected: the tool reports a conflict rather than retrying forever. Not run:
-  no co-authored document with a second author lock was available.
+  Expected: a `word_disconnected` (or `word_not_running` on reconnect) error. The
+  pin is not cleared automatically, so call `connect_document` once Word is back.
+  Not run: the Word instances on this machine also hold unrelated open documents,
+  and killing them would risk that work.
 - Reads are cached per document version. On a 2,206-paragraph, 42-table document
   the first `document_outline` takes about 2.5 seconds through the batched VBA scan
   and 11-22 seconds through plain COM depending on Word state, with every later

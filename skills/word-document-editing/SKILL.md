@@ -1,6 +1,6 @@
 ---
 name: word-document-editing
-description: 'Read and edit a Word document that is currently open in Word desktop on Windows, through the local word-mcp MCP server (tools list_open_documents, connect_document, document_outline, read_range, find_text, get_formatting, edit_text, apply_edits, format_text, edit_table, edit_page_layout, edit_fields, edit_media, edit_links, edit_content_controls, edit_annotations, manage_style, manage_list, insert_ooxml, revert_change). Use when a task involves changing or inspecting a live Word document: inserting or replacing text, applying or auditing styles, tables, captions, headers, footers, page setup, fields, tables of contents, images, comments, tracked changes, or content controls in an open .docx, or when the user refers to word-mcp, "the document I have open", or wants edits to appear in Word right now.'
+description: 'Read and edit a Word document that is currently open in Word desktop on Windows, through the local word-mcp MCP server (tools list_open_documents, connect_document, disconnect_document, document_outline, read_range, find_text, get_formatting, inspect_document, get_ooxml, edit_text, apply_edits, format_text, edit_table, edit_page_layout, edit_fields, edit_media, edit_links, edit_content_controls, edit_annotations, manage_style, manage_list, insert_ooxml, revert_change, save_document, set_document_properties). Use when a task involves changing or inspecting a live Word document: inserting or replacing text, applying or auditing styles, tables, captions, headers, footers, page setup, fields, tables of contents, images, comments, tracked changes, or content controls in an open .docx, or when the user refers to word-mcp, "the document I have open", or wants edits to appear in Word right now.'
 ---
 
 # Editing a live Word document
@@ -69,11 +69,18 @@ edit_text(res["at"]["token"], "insert", text="Page ", position="start")
 
 The footer then reads "Page 1", with the number still a live field.
 
-**Comments and revisions.** `edit_annotations` adds and replies to comments, and
-toggles track changes. Resolving a comment is not supported on this Word build.
-Agent edits are not tracked unless you call `track_changes` with `mode="on"`
-first, so do that before a review pass when the user wants to accept or reject
-your work.
+**Comments and revisions.** `edit_annotations` adds and replies to comments,
+resolves or deletes them, and toggles track changes. Agent edits are not tracked
+unless you call `track_changes` with `mode="on"` first, so do that before a
+review pass when the user wants to accept or reject your work.
+
+**Inventory, metadata, and raw XML.** `inspect_document` lists styles, comments,
+revisions, bookmarks, and content controls in one cached call. Use it for a
+formatting or review audit instead of enumerating collections yourself.
+`set_document_properties` sets built-in (Title, Author, ...) or custom document
+properties. `get_ooxml` returns WordprocessingML for a target when the object
+model has no property for what you need. `save_document` saves the pinned
+document. `disconnect_document` forgets the pin when you are done with it.
 
 **Undo a mistake.** `revert_change(operation_id)` undoes the newest change only,
 in reverse order. Only `edit_text`, `format_text`, `manage_style("apply")`, and
