@@ -291,3 +291,93 @@ def test_doc_raises_when_unpinned():
     session.begin_call()
     with pytest.raises(DocumentNotFound):
         session.doc()
+
+
+def test_split_container_defaults_to_section_one():
+    from word_mcp.addressing import split_container
+
+    assert split_container("body") == ("body", 1)
+    assert split_container("header") == ("header", 1)
+    assert split_container("header:2") == ("header", 2)
+    assert split_container("footer:12") == ("footer", 12)
+
+
+def test_split_container_rejects_a_bad_section():
+    from word_mcp.addressing import split_container
+    from word_mcp.errors import InvalidArgument
+
+    for bad in ("header:0", "header:-1", "header:x", "header:"):
+        with pytest.raises(InvalidArgument):
+            split_container(bad)
+
+
+def test_target_spec_accepts_a_sectioned_container():
+    from word_mcp.addressing import TargetSpec
+    from word_mcp.errors import InvalidArgument
+
+    assert TargetSpec.from_dict({"text": "x", "container": "header:2"}).container == "header:2"
+    with pytest.raises(InvalidArgument):
+        TargetSpec.from_dict({"text": "x", "container": "nope:2"})
+    with pytest.raises(InvalidArgument):
+        TargetSpec.from_dict({"text": "x", "container": "header:0"})
+
+
+def test_deviations_reads_the_matching_style_snapshot():
+    from word_mcp.inspect import deviations
+
+    class _Session:
+        def guard(self, fn):
+            return fn()
+
+    class _Style:
+        class Font:
+            Bold = 0
+            Size = 9.0
+
+        class ParagraphFormat:
+            Alignment = 1
+            LeftIndent = 18.0
+
+    out = deviations(
+        _Session(),
+        {"Bold": -1, "Size": 14.0},
+        {"Alignment": 0, "LeftIndent": 0.0},
+        _Style(),
+    )
+    assert out["Bold"]["style"] == 0
+    assert out["Size"]["style"] == 9.0
+    # Paragraph properties read the paragraph format, not the font. Reading the
+    # font for both reported None here.
+    assert out["Alignment"]["style"] == 1
+    assert out["LeftIndent"]["style"] == 18.0
+
+
+def test_settle_keeps_the_index_for_a_non_body_change():
+    from word_mcp import session as session_mod
+    from word_mcp.docindex import StructureIndex
+
+    session = session_mod.ComWordSession()
+
+    class _Doc:
+        class Content:
+            End = 100
+
+    session._doc = _Doc()
+    session._validated = True
+    session.guard = lambda fn: fn()
+    index = StructureIndex.__new__(StructureIndex)
+    index.fingerprint = 100
+    session._index = index
+
+    session.begin_change("structure")
+    session._end_before = 100
+    session.note_change(0, 7, container="header:2")
+    session._settle()
+    assert session._index is index, "a header change dropped the body index"
+
+    # A body change whose pre-edit fingerprint is stale still drops it.
+    session.begin_change("structure")
+    session._end_before = 999
+    session.note_change(0, 7, container="body")
+    session._settle()
+    assert session._index is None

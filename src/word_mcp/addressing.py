@@ -13,6 +13,24 @@ MAX_CANDIDATES = 50
 CONTAINERS = {"body", "header", "footer", "footnote", "endnote", "comment"}
 
 
+def split_container(container: str) -> tuple[str, int]:
+    """Split "header:2" into ("header", 2). A bare name means section 1.
+
+    The section rides in the container string because that string is already
+    threaded through TargetSpec, Match, Change, and revert; a separate field
+    would have to be carried by every one of them.
+    """
+    name, sep, suffix = container.partition(":")
+    if not sep:
+        return name, 1
+    if not suffix.isdigit() or int(suffix) < 1:
+        raise InvalidArgument(
+            f"Container section must be a positive integer, got {suffix!r}.",
+            container=container,
+        )
+    return name, int(suffix)
+
+
 @dataclass
 class TargetSpec:
     token: str | None = None
@@ -36,7 +54,8 @@ class TargetSpec:
                 f"Unknown target key(s) {unknown}.", allowed=sorted(allowed)
             )
         spec = cls(**data)
-        if spec.container not in CONTAINERS:
+        name, _ = split_container(spec.container)
+        if name not in CONTAINERS:
             raise InvalidArgument(
                 f"Unknown container {spec.container!r}.", allowed=sorted(CONTAINERS)
             )
