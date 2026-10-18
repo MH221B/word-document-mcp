@@ -87,8 +87,8 @@ document. `disconnect_document` forgets the pin when you are done with it.
 
 **Undo a mistake.** `revert_change(operation_id)` undoes the newest change only,
 in reverse order. Only `edit_text`, `format_text`, `manage_style("apply")`, and
-`insert_ooxml` return an operation id; the other mutations are not recorded and
-cannot be reverted.
+`insert_ooxml` return a top-level operation id, and each `apply_edits` entry
+returns its own; the other mutations are not recorded and cannot be reverted.
 
 ## Rules that keep you out of trouble
 

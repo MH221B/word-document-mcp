@@ -79,6 +79,37 @@ executed in this environment, with the behaviour to expect.
   fallback walks collections with `IEnumVARIANT.Next(256)`, which halves the
   paragraph enumeration (~0.86 s to ~0.44 s on the 2,207-paragraph document).
 
+## Known limitations
+
+Each line below was checked against the sample document, not inferred.
+
+- **Containers.** Only `body`, `header`, and `footer` work. `footnote`, `endnote`,
+  and `comment` pass target validation and are then rejected by every tool with
+  `invalid_argument: Container 'footnote' is not supported yet.`
+- **One header and footer per section.** `container="footer:2"` names a section (a
+  bare name means section 1), but `which` is not reachable from a container, so a
+  container always means the *primary* header or footer.
+  `edit_page_layout("header_footer", which="first_page")` writes a first-page
+  header that no container can read back.
+- **Revert is narrow.** Only the newest change reverts, in reverse order, and only
+  changes that report an `operation_id` are recorded: `edit_text`, `format_text`,
+  `manage_style("apply")`, `insert_ooxml`, and each entry of `apply_edits`.
+  `edit_table`, `edit_page_layout`, `edit_fields`, `manage_list`, `edit_media`,
+  `edit_links`, `edit_annotations`, and `edit_content_controls` are not recorded
+  and cannot be reverted. Revert restores text and formatting only: deleted
+  images, fields, and comments are not restored.
+- **`find_text` returns at most 50 matches** (`MAX_CANDIDATES`), whatever `limit`
+  says.
+- **`resolve_comment` does not work on this Word build.** It returns `word_error`
+  carrying Word's "This command is not available". Adding, replying to, and
+  deleting comments all work.
+- **One document is pinned per session**, and only the pinned document is
+  reachable. Call `connect_document` to switch.
+- **`insert_ooxml` never reports the span it changed**, so the read after it is a
+  full rebuild rather than an in-place patch.
+- **`word_property` is not registered** (skipped in v1), so no tool reads or writes
+  a single document property in isolation.
+
 ## Client registration check
 
 Confirmed programmatically: the server registers 25 tools and does not register
