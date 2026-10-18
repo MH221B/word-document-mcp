@@ -66,7 +66,6 @@ def edit_media(
     if action == "wrap":
         if wrap == "inline":
             return {"image": image_index, "wrap": "inline"}
-        floating = session.guard(lambda: shape.ConvertToShape())
         mapping = {
             "square": WD_WRAP_SQUARE,
             "tight": WD_WRAP_TIGHT,
@@ -75,6 +74,7 @@ def edit_media(
         }
         if wrap not in mapping:
             raise InvalidArgument(f"Unknown wrap {wrap!r}.", allowed=["inline", *mapping])
+        floating = session.guard(lambda: shape.ConvertToShape())
         session.guard(lambda: setattr(floating.WrapFormat, "Type", mapping[wrap]))
         return {"image": image_index, "wrap": wrap}
 
