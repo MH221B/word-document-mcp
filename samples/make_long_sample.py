@@ -8,6 +8,7 @@ import base64
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_SECTION
 from docx.shared import Inches
 
 DOT_PNG = base64.b64decode(
@@ -39,6 +40,7 @@ def build(path="samples/long.docx"):
     i = 0
     bullets_done = False
     numbers_done = False
+    section_added = False
     while paras < TARGET_PARAS or tables < TARGET_TABLES:
         if paras >= TARGET_PARAS and tables >= TARGET_TABLES:
             break
@@ -87,9 +89,19 @@ def build(path="samples/long.docx"):
             doc.add_picture("samples/dot.png", width=Inches(1.0))
             paras += 1
             continue
+        # One section break, roughly halfway, so section 2 is real and
+        # container targeting can be tested against it.
+        if not section_added and paras >= TARGET_PARAS // 2:
+            doc.add_section(WD_SECTION.NEW_PAGE)
+            section_added = True
         add_body(i)
         paras += 1
         i += 1
+
+    for number, section in enumerate(doc.sections, start=1):
+        header = section.header
+        header.is_linked_to_previous = False
+        header.paragraphs[0].text = f"Section {number} header"
 
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     doc.save(path)
