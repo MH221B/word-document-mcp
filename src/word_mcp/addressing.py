@@ -140,11 +140,3 @@ def choose(text: str, candidates: list[Match], occurrence: int | None) -> list[M
     if not candidates:
         raise TargetNotFound(f"Nothing matched {text!r}.")
     return candidates
-
-
-def check_container(container: str) -> str:
-    if container not in CONTAINERS:
-        raise InvalidArgument(
-            f"Unknown container {container!r}.", allowed=sorted(CONTAINERS)
-        )
-    return container

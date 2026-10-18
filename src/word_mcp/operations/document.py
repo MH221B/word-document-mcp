@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from word_mcp.errors import InvalidArgument
 from word_mcp.history import ChangeStack, revert
 
 

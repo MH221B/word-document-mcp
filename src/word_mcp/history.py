@@ -22,7 +22,6 @@ class Change:
     container: str = "body"
     text_before: str = ""
     format_before: dict = field(default_factory=dict)
-    reverted: bool = False
 
 
 class ChangeStack:

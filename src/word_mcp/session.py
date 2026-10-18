@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import sys
 import time
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol, TypeVar
+from typing import Any, Callable, TypeVar
 
 import pythoncom
 import win32com.client
@@ -43,19 +42,6 @@ class DocumentInfo:
     path: str
     read_only: bool
     protected: bool
-
-
-class WordSession(Protocol):
-    """What operations need from a session. Implemented by ComWordSession and the
-    in-memory fake used by unit tests."""
-
-    def documents(self) -> list[DocumentInfo]: ...
-    def pin(self, key: str) -> DocumentInfo: ...
-    def unpin(self) -> None: ...
-    def pinned(self) -> DocumentInfo | None: ...
-    def app(self) -> Any: ...
-    def doc(self) -> Any: ...
-    def guard(self, fn: Callable[[], T]) -> T: ...
 
 
 class ComWordSession:
@@ -487,21 +473,3 @@ def story_range(doc: Any, container: str):
         f"Container {container!r} is not supported yet.",
         supported=["body", "header", "footer"],
     )
-
-
-@contextmanager
-def quiet_batch(app: Any, session: "ComWordSession"):
-    """Suppress alerts and screen updating for one batch, then restore them.
-
-    A modal dialog cannot be dismissed by a background process, so leaving these
-    set would hide the problem rather than fix it.
-    """
-    prev_alerts = app.DisplayAlerts
-    prev_updating = app.ScreenUpdating
-    session.guard(lambda: setattr(app, "DisplayAlerts", 0))  # wdAlertsNone
-    session.guard(lambda: setattr(app, "ScreenUpdating", False))
-    try:
-        yield
-    finally:
-        session.guard(lambda: setattr(app, "DisplayAlerts", prev_alerts))
-        session.guard(lambda: setattr(app, "ScreenUpdating", prev_updating))

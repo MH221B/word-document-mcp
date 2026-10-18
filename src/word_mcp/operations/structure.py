@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from word_mcp.errors import InvalidArgument, TargetNotFound
 from word_mcp.history import ChangeStack
-from word_mcp.operations import caption_paragraph, gate_delete, gate_range
+from word_mcp.operations import caption_paragraph
 
 WD_CAPTION_ABOVE = 0
 WD_CAPTION_BELOW = 1
