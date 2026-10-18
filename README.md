@@ -78,7 +78,9 @@ executed in this environment, with the behaviour to expect.
   drops the cache, which is rebuilt when the document's character count changes.
   A restyle made by hand in Word is invisible to that check: pass
   `document_outline(refresh=true)` to force a rebuild. A multi-change
-  `apply_edits` drops the cached index, so the next read rebuilds it.
+  `apply_edits` drops the cached index, so the next read rebuilds it. The COM
+  fallback walks collections with `IEnumVARIANT.Next(256)`, which halves the
+  paragraph enumeration (~0.86 s to ~0.44 s on the 2,206-paragraph document).
 
 ## Client registration check
 
