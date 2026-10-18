@@ -71,6 +71,7 @@ class ComWordSession:
         self._macro_noted = False
         self._change_count = 0
         self._result_range: tuple | None = None
+        self._effect = "structure"
 
     # -- connection ---------------------------------------------------------
 
@@ -306,15 +307,19 @@ class ComWordSession:
             file=sys.stderr,
         )
 
-    def begin_change(self) -> None:
+    def begin_change(self, effect: str = "structure") -> None:
         """Snapshot the length, so a mutation can be described to the index.
 
-        Never raises: a mutation that cannot be described simply drops the index,
-        which is what happened before this existed.
+        `effect` is what the mutation can touch: "structure" (text or structure
+        moved), "inventory" (only comments/bookmarks changed), or "none" (nothing
+        observable changed). Never raises: a mutation that cannot be described
+        simply drops the index, which is what happened before this existed.
         """
+        self._effect = effect
         self._change = None
         self._change_count = 0
         self._end_before = None
+        self._result_range = None
         if self._index is None:
             return
         try:
@@ -355,6 +360,15 @@ class ComWordSession:
     def _settle(self) -> None:
         index = self._index
         if index is None:
+            return
+        if self._effect in ("none", "inventory"):
+            # The operation promised no character moved. One read confirms it.
+            doc = self.doc()
+            if int(self.guard(lambda: doc.Content.End)) == index.fingerprint:
+                if self._effect == "inventory":
+                    self._inventory = None
+                return
+            self.invalidate_index()
             return
         if self._change is None or self._end_before is None or self._change_count != 1:
             self.invalidate_index()

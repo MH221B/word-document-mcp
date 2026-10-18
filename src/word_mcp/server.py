@@ -36,15 +36,14 @@ def run(fn: Callable[[], Any]) -> str:
         return tool_error(exc)
 
 
-def mutate(fn: Callable[[], Any]) -> str:
+def mutate(fn: Callable[[], Any], effect: str = "structure") -> str:
     """Call a mutating operation, settle the index, then attach `at`.
 
-    An operation that reported the span it changed patches the index in place; a
-    failed operation, and every operation that cannot describe itself, drops it.
-    The post-edit anchor is built only when the index survived, so a multi-span
-    batch never triggers a cold rebuild just to describe a range.
+    `effect` says what the mutation can touch, so an edit that moves no
+    characters keeps the cached index and inventory. A failed operation still
+    drops the index.
     """
-    SESSION.begin_change()
+    SESSION.begin_change(effect)
     try:
         out = fn()
     except WordMcpError as exc:
@@ -209,7 +208,7 @@ def save_document() -> str:
 @mcp.tool()
 def set_document_properties(properties: dict) -> str:
     """Set built-in (Title, Author, ...) or custom document properties."""
-    return mutate(lambda: document_ops.set_document_properties(SESSION, properties))
+    return mutate(lambda: document_ops.set_document_properties(SESSION, properties), effect="none")
 
 
 @mcp.tool()
@@ -301,7 +300,8 @@ def edit_page_layout(
             which=which, text=text, different_first_page=different_first_page,
             odd_and_even=odd_and_even,
         )
-    return mutate(go)
+    effect = "none" if action in ("page_setup", "flags") else "structure"
+    return mutate(go, effect=effect)
 
 
 @mcp.tool()
@@ -342,7 +342,8 @@ def edit_media(
             path=path, width=width, height=height, wrap=wrap, label=label, title=title,
             position=position,
         )
-    return mutate(go)
+    effect = "none" if action in ("size", "wrap") else "structure"
+    return mutate(go, effect=effect)
 
 
 @mcp.tool()
@@ -364,7 +365,10 @@ def edit_links(
             sub_address=sub_address, screen_tip=screen_tip, display_text=display_text,
             name=name, text=text,
         )
-    return run(go) if action == "bookmark_find" else mutate(go)
+    if action == "bookmark_find":
+        return run(go)
+    effect = "inventory" if action == "bookmark_add" else "structure"
+    return mutate(go, effect=effect)
 
 
 @mcp.tool()
@@ -406,7 +410,13 @@ def edit_annotations(
             SESSION, inspect.resolve, action=action, spec=spec, text=text,
             comment_index=comment_index, done=done, mode=mode, confirm=confirm,
         )
-    return mutate(go)
+    if action in (
+        "track_changes", "add_comment", "reply_comment", "resolve_comment", "delete_comment"
+    ):
+        effect = "inventory"
+    else:
+        effect = "structure"
+    return mutate(go, effect=effect)
 
 
 @mcp.tool()
