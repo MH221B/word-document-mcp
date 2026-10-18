@@ -59,6 +59,7 @@ class ComWordSession:
         self._change_count = 0
         self._result_range: tuple | None = None
         self._effect = "structure"
+        self._validated = False
 
     # -- connection ---------------------------------------------------------
 
@@ -187,22 +188,33 @@ class ComWordSession:
         self._info = None
         self._index = None
         self._inventory = None
+        self._validated = False
 
     def pinned(self) -> DocumentInfo | None:
         return self._info
 
+    def begin_call(self) -> None:
+        """Called once per tool call, so the next doc() re-validates the pin.
+
+        A single tool call reaches doc() several times; re-reading FullName each
+        time is a round-trip per call. No COM here.
+        """
+        self._validated = False
+
     def doc(self) -> Any:
         if self._doc is None:
             raise DocumentNotFound("No document is pinned. Call connect_document.")
-        path = str(self.guard(lambda: self._doc.FullName))
-        if path != self._info.path:
-            self.unpin()
-            raise DocumentNotFound(
-                "The pinned document was renamed or saved elsewhere. "
-                "Call connect_document again.",
-                was=self._info.path,
-                now=path,
-            )
+        if not self._validated:
+            self._validated = True
+            path = str(self.guard(lambda: self._doc.FullName))
+            if path != self._info.path:
+                self.unpin()
+                raise DocumentNotFound(
+                    "The pinned document was renamed or saved elsewhere. "
+                    "Call connect_document again.",
+                    was=self._info.path,
+                    now=path,
+                )
         return self._doc
 
     def require_writable(self) -> None:

@@ -30,6 +30,7 @@ def tool_error(exc: WordMcpError) -> str:
 
 def run(fn: Callable[[], Any]) -> str:
     """Call an operation, turning domain errors into tool output."""
+    SESSION.begin_call()
     try:
         return json.dumps(fn(), indent=2, default=str)
     except WordMcpError as exc:
@@ -43,6 +44,7 @@ def mutate(fn: Callable[[], Any], effect: str = "structure") -> str:
     characters keeps the cached index and inventory. A failed operation still
     drops the index.
     """
+    SESSION.begin_call()
     SESSION.begin_change(effect)
     try:
         out = fn()
