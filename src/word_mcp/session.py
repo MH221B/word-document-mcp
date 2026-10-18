@@ -329,6 +329,10 @@ class ComWordSession:
 
     def note_change(self, start: int, end: int) -> None:
         """Record the span a mutating operation changed, in post-edit offsets."""
+        if self._end_before is None and self._index is not None:
+            # The index was built during resolve, before this mutation, so its
+            # fingerprint is exactly the pre-edit Content.End.
+            self._end_before = self._index.fingerprint
         self._change = (start, end)
         self._change_count += 1
 
