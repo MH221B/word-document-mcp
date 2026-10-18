@@ -54,7 +54,7 @@ rather than eating the break and merging the next paragraph into the heading.
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `document_outline` | `depth=9`, `refresh=false` | Headings with tokens, tables with size, sections with page size, images. Structure is cached, so calling it again on an unchanged document is cheap. `refresh=true` rebuilds after a structural change made by hand in Word. |
+| `document_outline` | `depth=9`, `refresh=false` | Headings with tokens, tables with size, sections with page size, images, and `structure_source` (`"vba"` or `"com"`). Structure is cached, so calling it again on an unchanged document is cheap. `refresh=true` rebuilds after a structural change made by hand in Word. When the COM fallback was due to a denied VBA path, `structure_hint` explains how to enable the faster scan. |
 | `read_range` | `target`, `include_formatting=False` | Text, and optionally the formatting block. |
 | `get_formatting` | `target` | Paragraph and character style, font and paragraph snapshots, and `deviations_from_style`. |
 | `find_text` | `text`, `container`, `heading_path`, `style`, `wildcards`, `match_case`, `limit=20` | Candidates with context. Never fails on ambiguity. |
@@ -68,10 +68,21 @@ template-conformant.
 ## Editing
 
 `edit_text` (`target`, `action`, `text`, `position`, `format_mode`, `formatting`, `confirm`)
-Actions: `insert`, `replace`, `delete`.
+Actions: `insert`, `replace`, `delete`. The result carries `at`, describing the
+**post-edit** range: for `delete` it is the zero-width caret where the text was,
+so `at.text` is empty.
+
+`apply_edits` (`edits`, `confirm`)
+Applies a list of `edit_text` argument objects in order, in one call. Stops at the
+first failure and returns the partial state under the standard error key:
+`{"applied": [...], "error": {"code": "batch_stopped", "index": i, "cause": {...}}}`.
+Each applied entry carries its own `operation_id`; recover a partial batch with
+reverse-order `revert_change` calls. A multi-change batch drops the cached index,
+so the next read rebuilds it.
 
 `format_text` (`target`, `action`, `formatting`, `source`, `confirm`)
 Actions: `character`, `paragraph`, `clear`, `copy_from` where `source` is another target.
+The result carries `at` for the target range.
 
 `manage_style` (`action`, `target`, `name`, `based_on`, `formatting`, `confirm`)
 Actions: `list`, `create`, `update`, `delete`, `apply`.

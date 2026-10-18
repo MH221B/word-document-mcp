@@ -62,14 +62,14 @@ executed in this environment, with the behaviour to expect.
 - A co-authored document with another author holding a lock.
   Expected: the tool reports a conflict rather than retrying forever. Not run:
   no co-authored document with a second author lock was available.
-- Reads are cached per document version. On a 1,616-paragraph, 42-table document
+- Reads are cached per document version. On a 2,206-paragraph, 42-table document
   the first `document_outline` takes about 2.5 seconds through the batched VBA scan
   and 11-22 seconds through plain COM depending on Word state, with every later
   call on the
   unchanged document about 0.006 seconds; the first `inspect_document` takes about
   1.2 seconds and a repeat about 0.002 seconds. The VBA scan needs Trust access
-  to the VBA project object model in Word; without it the server silently uses
-  COM instead. `find_text` pays Word's scan plus
+  to the VBA project object model in Word; without it the server falls back to
+  COM and reports `structure_source: "com"` with a `structure_hint`. `find_text` pays Word's scan plus
   about 30 ms per match it returns (its style is skipped unless the search
   filters by style), so `limit=5` takes about 0.4 seconds and
   `limit=20` about 0.9 seconds rather than visiting all 47 matches. An edit that
@@ -77,10 +77,11 @@ executed in this environment, with the behaviour to expect.
   after an edit is warm instead of a full rebuild; anything it cannot describe
   drops the cache, which is rebuilt when the document's character count changes.
   A restyle made by hand in Word is invisible to that check: pass
-  `document_outline(refresh=true)` to force a rebuild.
+  `document_outline(refresh=true)` to force a rebuild. A multi-change
+  `apply_edits` drops the cached index, so the next read rebuilds it.
 
 ## Client registration check
 
-Confirmed programmatically: the server registers 24 tools and does not register
+Confirmed programmatically: the server registers 25 tools and does not register
 `word_property` (skipped in v1).
 

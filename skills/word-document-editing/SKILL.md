@@ -1,6 +1,6 @@
 ---
 name: word-document-editing
-description: 'Read and edit a Word document that is currently open in Word desktop on Windows, through the local word-mcp MCP server (tools list_open_documents, connect_document, document_outline, read_range, find_text, get_formatting, edit_text, format_text, edit_table, edit_page_layout, edit_fields, edit_media, edit_links, edit_content_controls, edit_annotations, manage_style, manage_list, insert_ooxml, revert_change). Use when a task involves changing or inspecting a live Word document: inserting or replacing text, applying or auditing styles, tables, captions, headers, footers, page setup, fields, tables of contents, images, comments, tracked changes, or content controls in an open .docx, or when the user refers to word-mcp, "the document I have open", or wants edits to appear in Word right now.'
+description: 'Read and edit a Word document that is currently open in Word desktop on Windows, through the local word-mcp MCP server (tools list_open_documents, connect_document, document_outline, read_range, find_text, get_formatting, edit_text, apply_edits, format_text, edit_table, edit_page_layout, edit_fields, edit_media, edit_links, edit_content_controls, edit_annotations, manage_style, manage_list, insert_ooxml, revert_change). Use when a task involves changing or inspecting a live Word document: inserting or replacing text, applying or auditing styles, tables, captions, headers, footers, page setup, fields, tables of contents, images, comments, tracked changes, or content controls in an open .docx, or when the user refers to word-mcp, "the document I have open", or wants edits to appear in Word right now.'
 ---
 
 # Editing a live Word document
@@ -15,18 +15,22 @@ only the pinned document is reachable.
 list_open_documents()                      # what Word has open
 connect_document("report.docx")             # pin one for the session
 document_outline()                          # headings, tables, sections, images, each with a token
-read_range({"text": "Total riders"})        # text, plus a fresh token
-edit_text({"token": "be4b28bb"}, "replace", text="Total riders: 9")
+edit_text({"text": "Total riders"}, "replace", text="Total riders: 9")   # returns an "at" token for the result
 ```
 
 ## The loop
 
-Read first, then edit by token. Every read returns a token per location, and the
-server holds the resolved Word range behind it, so an edit lands where you read
-even if the document shifted in between.
-
 Name a target in this order: a token from a read, then text with context, then a
 style, then a heading path. Add `occurrence` only after seeing the candidates.
+
+Read first when you need candidates or formatting. For a single, immediately
+applied edit, targeting by text directly is fine: the first text-targeted edit is
+the probe, and if you get `ambiguous_target`, call `find_text` and narrow with
+`heading_path`, `occurrence`, or a candidate token. Every read returns a token
+per location, and the server holds the resolved Word range behind it, so an edit
+lands where you read even if the document shifted in between. Every text edit
+returns an `at` token for the result, so edits chain without a verification read.
+Use `apply_edits` for several changes in one call.
 
 ## Workflows
 
@@ -94,8 +98,9 @@ cannot be reverted.
 - Reads come from a structure index cached per document version, so a second
   `document_outline` on an unchanged document is nearly free. A normal edit made
   through a tool keeps the structure warm, because the edit patches the index in
-  place. A change made directly in Word, rather than through a tool, may need
-  `document_outline(refresh=true)` before the new headings appear.
+  place. A multi-change `apply_edits` drops the index instead, so the next read is
+  a full rebuild. A change made directly in Word, rather than through a tool, may
+  need `document_outline(refresh=true)` before the new headings appear.
 
 ## Reference
 
