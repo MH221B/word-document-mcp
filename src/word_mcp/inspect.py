@@ -88,6 +88,22 @@ def match_from_range(
     return match
 
 
+def anchor(session, handle, container: str = "body") -> Match:
+    """Register a token for a range and describe where it is.
+
+    Body context comes from the settled structure index; a header or footer has
+    its own offset space, so it is scanned within its own story.
+    """
+    if container == "body":
+        index = session.index()
+        paragraphs: list = []
+    else:
+        index = None
+        host = story_range(session.doc(), container)
+        paragraphs = session.guard(lambda: list(host.Paragraphs))
+    return match_from_range(session, handle, index, paragraphs, container)
+
+
 def _heading_match(index, heading, handle, token: str = "") -> Match:
     """A heading's result, described from live index data."""
     return Match(
@@ -138,13 +154,20 @@ def document_outline(session, depth: int = 9, refresh: bool = False) -> dict:
         headings.append(
             {"level": heading.level, **_heading_match(index, heading, handle, token).describe()}
         )
-    return {
+    payload = {
         "document": session.pinned().__dict__,
         "headings": headings,
         "tables": index.tables,
         "sections": index.sections,
         "images": index.images,
+        "structure_source": index.source,
     }
+    if index.source == "com" and session.macro_denied():
+        payload["structure_hint"] = (
+            "Word's VBA path is unavailable; enable 'Trust access to the VBA "
+            "project object model' for a faster scan."
+        )
+    return payload
 
 
 WD_UNDEFINED = 9999999
