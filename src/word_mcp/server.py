@@ -214,7 +214,10 @@ def save_document() -> str:
 @mcp.tool()
 def set_document_properties(properties: dict) -> str:
     """Set built-in (Title, Author, ...) or custom document properties."""
-    return mutate(lambda: document_ops.set_document_properties(SESSION, properties), effect="none")
+    # Document properties are read into the inventory, so that cache must go.
+    return mutate(
+        lambda: document_ops.set_document_properties(SESSION, properties), effect="inventory"
+    )
 
 
 @mcp.tool()
@@ -309,7 +312,10 @@ def edit_page_layout(
             which=which, text=text, different_first_page=different_first_page,
             odd_and_even=odd_and_even,
         )
-    effect = "none" if action in ("page_setup", "flags") else "structure"
+    # page_setup changes the index's sections (page size and orientation), and a
+    # section_break changes the body, so both invalidate the index. header_footer
+    # and flags touch neither cache, so the index and inventory stay warm.
+    effect = "structure" if action in ("page_setup", "section_break") else "none"
     return mutate(go, effect=effect)
 
 
