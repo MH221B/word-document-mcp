@@ -10,6 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from word_mcp.errors import MacrosUnavailable
+
+
+class ScanFailed(Exception):
+    """The VBA scan could not produce a usable result; fall back to COM."""
+
 VBA_PROBE = "Function ProbePing() As Long\r\n    ProbePing = 1\r\nEnd Function\r\n"
 
 VBA_SCAN = (
@@ -111,6 +117,10 @@ def scan(session: Any, doc: Any) -> tuple:
         mod = session.guard(lambda: _inject(tmp, "McpScan", VBA_SCAN))
         try:
             raw = session.guard(lambda: app.Run("McpScan.ScanDoc", target))
+        except MacrosUnavailable:
+            raise
+        except Exception as exc:
+            raise ScanFailed(str(exc)) from exc
         finally:
             session.guard(lambda: tmp.VBProject.VBComponents.Remove(mod))
     finally:
