@@ -69,9 +69,10 @@ class MacrosUnavailable(WordMcpError):
 
 
 # Word error 6068: "Programmatic access to Visual Basic Project is not trusted."
-# Confirm the value with a live probe when Trust Center access is off; the string
-# list below still catches it on English Word if this is wrong.
-WORD_MACRO_DENIED_HRESULT = 0x800A17B4 - 0x100000000
+# pywin32 surfaces this as DISP_E_EXCEPTION (-2147352567) with the Word code in
+# excepinfo[5]; confirmed against live Word. The string list is the English
+# fallback.
+WORD_MACRO_DENIED_SCODE = 0x800A17B4 - 0x100000000
 
 _MACRO_DENIED = (
     "6068",
@@ -84,7 +85,8 @@ _MACRO_DENIED = (
 
 
 def _is_macro_denial(exc: BaseException) -> bool:
-    if getattr(exc, "hresult", None) == WORD_MACRO_DENIED_HRESULT:
+    excepinfo = getattr(exc, "excepinfo", None)
+    if excepinfo and len(excepinfo) > 5 and excepinfo[5] == WORD_MACRO_DENIED_SCODE:
         return True
     text = str(exc).casefold()
     return any(m in text for m in _MACRO_DENIED)

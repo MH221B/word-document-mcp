@@ -15,6 +15,15 @@ def test_denial_text_variants_map_to_macros_unavailable():
     ).code == "macros_unavailable"
 
 
+def test_denial_word_scode_maps_to_macros_unavailable():
+    class _Err(Exception):
+        # What pywin32 actually raises for a VBOM denial: DISP_E_EXCEPTION with
+        # the Word code 6068 in excepinfo[5], and a localized description.
+        excepinfo = (0, "Microsoft Word", "Zugriff verweigert.", None, 0, -2146822220)
+
+    assert errors.map_com_error(_Err("Exception occurred.")).code == "macros_unavailable"
+
+
 class _StubSession:
     """Just enough session for StructureIndex.build."""
 
