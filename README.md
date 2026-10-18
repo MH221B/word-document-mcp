@@ -141,6 +141,10 @@ Measured on a 2,207-paragraph, 2-section, 42-table document.
 | `find_text`, `limit=5` | 0.2 s | |
 | `find_text`, `limit=20` | 0.7 s | |
 
+An edit that drops a cache pays for the rebuild on the next read. That is about
+2.7 s for the index and about 1.1 s for the inventory, so an edit in the `both
+caches re-read` group costs about 3.8 s across the next two reads.
+
 Turn on Trust access to the VBA project object model. It is the difference between
 a 2.5 second outline and an 11 second one. Without it the server uses COM, reports
 `structure_source: "com"`, and adds a `structure_hint` that says how to enable the
