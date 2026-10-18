@@ -35,10 +35,10 @@ def edit_text(
         return _replace(session, stack, doc, rng, text, format_mode, formatting, spec.container)
     if action == "delete":
         gate_delete(before, confirm)
+        session.guard(lambda: rng.Delete())
         change = stack.record(
             "text", f"delete {len(before)} chars", rng, container=spec.container, text_before=before
         )
-        session.guard(lambda: rng.Delete())
         note_span(session, rng)
         session.note_result_range(rng, spec.container)
         return _result(change, doc)
@@ -65,9 +65,11 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
             "text", f"insert at {position}", inserted, container=container, text_before=""
         )
     elif position == "replace":
-        change = stack.record("text", "insert at replace", rng, container=container, text_before=before)
         session.guard(lambda: setattr(rng, "Text", text))
         inserted = session.guard(lambda: rng.Duplicate)
+        change = stack.record(
+            "text", "insert at replace", inserted, container=container, text_before=before
+        )
         note_span(session, inserted)
         session.note_result_range(inserted, container)
     else:
@@ -79,9 +81,9 @@ def _insert(session, stack, doc, rng, text, position, format_mode, formatting, c
 def _replace(session, stack, doc, rng, text, format_mode, formatting, container) -> dict:
     style_before = str(session.guard(lambda: rng.Paragraphs(1).Range.Style.NameLocal))
     before = str(session.guard(lambda: rng.Text))
-    change = stack.record("text", "replace", rng, container=container, text_before=before)
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
+    change = stack.record("text", "replace", fresh, container=container, text_before=before)
     note_span(session, fresh)
     session.note_result_range(fresh, container)
     _apply_mode(session, fresh, style_before, format_mode, formatting)

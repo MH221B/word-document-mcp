@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from word_mcp.errors import InvalidArgument, WordMcpError
+from word_mcp.inspect import FONT_PROPS as _FONT_PROPS
 from word_mcp.session import story_range
 
 MAX_DEPTH = 20
@@ -81,7 +82,10 @@ def revert(session, stack: ChangeStack, op_id: int) -> dict:
         session.guard(lambda: setattr(rng, "Text", change.text_before))
     elif change.kind == "format":
         for prop, value in change.format_before.items():
-            target = rng.Font if hasattr(rng.Font, prop) else rng.ParagraphFormat
+            if prop == "Style":
+                session.guard(lambda v=value: setattr(rng, "Style", v))
+                continue
+            target = rng.Font if prop in _FONT_PROPS else rng.ParagraphFormat
             session.guard(lambda t=target, p=prop, v=value: setattr(t, p, v))
     else:
         raise InvalidArgument(f"Cannot revert a {change.kind} change.")
