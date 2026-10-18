@@ -197,11 +197,16 @@ def _snapshot(obj: Any, props: list[str], session) -> dict:
     return out
 
 
-def deviations(session, handle, font: dict, paragraph: dict) -> dict:
-    """Properties where direct formatting differs from the style definition."""
-    style = session.guard(lambda: handle.Style)
-    inherited = _snapshot(style.Font, FONT_PROPS, session)
-    para_style = _snapshot(style.ParagraphFormat, PARA_PROPS, session)
+def deviations(session, font: dict, paragraph: dict, style) -> dict:
+    """Properties where direct formatting differs from the style definition.
+
+    Only properties present in the direct formatting are compared, so only those
+    are read from the style.
+    """
+    inherited = _snapshot(style.Font, [p for p in FONT_PROPS if p in font], session)
+    para_style = _snapshot(
+        style.ParagraphFormat, [p for p in PARA_PROPS if p in paragraph], session
+    )
     return {
         prop: {"direct": value, "style": inherited.get(prop)}
         for prop, value in {**font, **paragraph}.items()
@@ -227,16 +232,17 @@ def get_formatting(session, spec) -> dict:
 def _formatting(session, match) -> dict:
     handle = match.handle
     paragraph = session.guard(lambda: handle.Paragraphs(1))
+    style = session.guard(lambda: handle.Style)
     font = _snapshot(handle.Font, FONT_PROPS, session)
     para = _snapshot(handle.ParagraphFormat, PARA_PROPS, session)
     return {
         "target": match.describe(),
         "paragraph_style": str(session.guard(lambda: paragraph.Style.NameLocal)),
-        "character_style": str(session.guard(lambda: handle.Style.NameLocal)),
+        "character_style": str(session.guard(lambda: style.NameLocal)),
         "surrounding_style": str(session.guard(lambda: paragraph.Range.Style.NameLocal)),
         "font": font,
         "paragraph": para,
-        "deviations_from_style": deviations(session, handle, font, para),
+        "deviations_from_style": deviations(session, font, para, style),
     }
 
 
