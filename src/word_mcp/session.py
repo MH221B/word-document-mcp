@@ -12,6 +12,7 @@ import win32com.client
 from pythoncom import com_error
 
 from word_mcp.docindex import StructureIndex
+from word_mcp.addressing import split_container
 from word_mcp.errors import (
     DocumentAmbiguous,
     DocumentNotFound,
@@ -321,6 +322,7 @@ class ComWordSession:
         self._change_count = 0
         self._end_before = None
         self._result_range = None
+        self._container = "body"
         if self._index is None:
             return
         try:
@@ -328,14 +330,20 @@ class ComWordSession:
         except Exception:
             self._end_before = None
 
-    def note_change(self, start: int, end: int) -> None:
-        """Record the span a mutating operation changed, in post-edit offsets."""
+    def note_change(self, start: int, end: int, container: str = "body") -> None:
+        """Record the span a mutating operation changed, in post-edit offsets.
+
+        `container` says which story those offsets belong to. A header edit's
+        offsets are header-relative, so without this they would look like a body
+        edit and the body index would be thrown away for no reason.
+        """
         if self._end_before is None and self._index is not None:
             # The index was built during resolve, before this mutation, so its
             # fingerprint is exactly the pre-edit Content.End.
             self._end_before = self._index.fingerprint
         self._change = (start, end)
         self._change_count += 1
+        self._container = container
 
     def note_result_range(self, handle: Any, container: str) -> None:
         """Stash the post-edit range so `mutate` can build `at` after settling."""
@@ -369,8 +377,10 @@ class ComWordSession:
         index = self._index
         if index is None:
             return
-        if self._effect in ("none", "inventory"):
-            # The operation promised no character moved. One read confirms it.
+        if self._effect in ("none", "inventory") or self._container != "body":
+            # The operation promised no body character moved, or it happened in a
+            # header or footer, whose offsets are a different space entirely. One
+            # read confirms the body is untouched.
             doc = self.doc()
             if int(self.guard(lambda: doc.Content.End)) == index.fingerprint:
                 if self._effect == "inventory":
@@ -475,14 +485,16 @@ def story_range(doc: Any, container: str):
 
     Offsets inside a header or footer range are relative to that story, not to the
     body, so a range built with doc.Range() lands in the body. Every caller that
-    needs a range inside a container goes through here.
+    needs a range inside a container goes through here. A container may name its
+    section, as in "header:2"; a bare name means section 1.
     """
-    if container == "body":
+    name, section = split_container(container)
+    if name == "body":
         return doc.Content
-    if container == "header":
-        return doc.Sections(1).Headers(1).Range
-    if container == "footer":
-        return doc.Sections(1).Footers(1).Range
+    if name == "header":
+        return doc.Sections(section).Headers(1).Range
+    if name == "footer":
+        return doc.Sections(section).Footers(1).Range
     raise InvalidArgument(
         f"Container {container!r} is not supported yet.",
         supported=["body", "header", "footer"],

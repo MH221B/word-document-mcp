@@ -60,7 +60,7 @@ def manage_style(
         gate_range(length, confirm)
         before = str(session.guard(lambda: match.handle.Style.NameLocal))
         change = stack.record("format", f"apply style {name}", match.handle, container=match.container, format_before={"Style": before})
-        note_span(session, match.handle)
+        note_span(session, match.handle, match.container)
         session.guard(lambda: setattr(match.handle, "Style", name))
         return {"operation_id": change.op_id, "applied": name, "previous": before}
 
@@ -98,7 +98,7 @@ def manage_list(
     session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
-    note_span(session, rng)
+    note_span(session, rng, match.container)
     # ListGalleries is an Application property, not a Document one.
     galleries = session.guard(lambda: session.app().ListGalleries)
 

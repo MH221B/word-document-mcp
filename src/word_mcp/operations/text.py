@@ -46,7 +46,7 @@ def edit_text(
         change = stack.record(
             "text", f"delete {len(before)} chars", rng, container=match.container, text_before=before
         )
-        note_span(session, rng)
+        note_span(session, rng, match.container)
         session.note_result_range(rng, match.container)
         return _result(change, doc, tracked=tracked)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
@@ -67,7 +67,7 @@ def _insert(
         else:
             session.guard(lambda: point.InsertBefore(text))
         inserted = session.guard(lambda: point.Duplicate)
-        note_span(session, inserted)
+        note_span(session, inserted, container)
         session.note_result_range(inserted, container)
         change = stack.record(
             "text", f"insert at {position}", inserted, container=container, text_before=""
@@ -79,7 +79,7 @@ def _insert(
         change = stack.record(
             "text", "insert at replace", inserted, container=container, text_before=before
         )
-        note_span(session, inserted)
+        note_span(session, inserted, container)
         session.note_result_range(inserted, container)
     else:
         raise InvalidArgument(f"Unknown position {position!r}.", allowed=["start", "end", "replace"])
@@ -94,7 +94,7 @@ def _replace(
     session.guard(lambda: setattr(rng, "Text", text))
     fresh = session.guard(lambda: rng.Duplicate)
     change = stack.record("text", "replace", fresh, container=container, text_before=before)
-    note_span(session, fresh)
+    note_span(session, fresh, container)
     session.note_result_range(fresh, container)
     _apply_mode(session, fresh, style_before, format_mode, formatting)
     return _result(change, doc, style=style_before, tracked=tracked)
@@ -161,7 +161,7 @@ def format_text(
     session.require_writable()
     match = resolve(session, spec)
     rng = match.handle
-    note_span(session, rng)
+    note_span(session, rng, match.container)
     session.note_result_range(rng, match.container)
     length = int(session.guard(lambda: rng.End - rng.Start))
     gate_range(length, confirm)

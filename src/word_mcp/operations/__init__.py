@@ -99,13 +99,17 @@ def pick(session, collection, index: int, what: str, key: str):
     return session.guard(lambda: collection(index))
 
 
-def note_span(session, rng) -> None:
-    """Tell the session which span this operation changed.
+def note_span(session, rng, container: str = "body") -> None:
+    """Tell the session which span this operation changed, and where.
 
     `rng` is the range the change produced, in post-edit offsets: the inserted
     text for an insert, the new text for a replace, the collapsed point for a
-    delete. A tool that does not call this drops the index, as it always did.
+    delete. `container` says which story those offsets belong to, so a header
+    edit does not look like a body edit. A tool that does not call this drops the
+    index, as it always did.
     """
     session.note_change(
-        int(session.guard(lambda: rng.Start)), int(session.guard(lambda: rng.End))
+        int(session.guard(lambda: rng.Start)),
+        int(session.guard(lambda: rng.End)),
+        container,
     )
