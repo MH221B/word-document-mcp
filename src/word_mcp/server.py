@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -151,14 +151,18 @@ def get_ooxml(target: dict) -> str:
 @mcp.tool()
 def edit_text(
     target: dict,
-    action: str,
+    action: Literal["insert", "replace", "delete"],
     text: str = "",
-    position: str = "end",
-    format_mode: str = "inherit",
+    position: Literal["start", "end", "replace"] = "end",
+    format_mode: Literal["inherit", "style_only", "explicit"] = "inherit",
     formatting: dict | None = None,
     confirm: bool = False,
 ) -> str:
-    """Insert, replace, or delete text. format_mode is inherit, style_only, or explicit."""
+    """Insert, replace, or delete text at a target.
+
+    action is insert, replace, or delete; position is start, end, or replace;
+    format_mode is inherit, style_only, or explicit.
+    """
     def go():
         return text_ops.edit_text(
             SESSION, HISTORY, inspect.TargetSpec.from_dict(target), inspect.resolve,
@@ -171,7 +175,7 @@ def edit_text(
 @mcp.tool()
 def format_text(
     target: dict,
-    action: str,
+    action: Literal["character", "paragraph", "clear", "copy_from"],
     formatting: dict | None = None,
     source: dict | None = None,
     confirm: bool = False,
@@ -213,7 +217,7 @@ def set_document_properties(properties: dict) -> str:
 
 @mcp.tool()
 def manage_style(
-    action: str,
+    action: Literal["list", "create", "update", "delete", "apply"],
     target: dict | None = None,
     name: str = "",
     based_on: str = "",
@@ -233,8 +237,8 @@ def manage_style(
 @mcp.tool()
 def manage_list(
     target: dict,
-    action: str,
-    list_format: str = "bullet",
+    action: Literal["apply", "continue", "restart", "set_level"],
+    list_format: Literal["bullet", "number"] = "bullet",
     level: int = 1,
     start_at: int = 1,
     confirm: bool = False,
@@ -251,7 +255,10 @@ def manage_list(
 
 @mcp.tool()
 def edit_table(
-    action: str,
+    action: Literal[
+        "insert", "add_rows", "add_columns", "delete_row", "delete_column",
+        "merge_cells", "split_cell", "format_cell", "style", "header_row", "caption",
+    ],
     target: dict | None = None,
     table_index: int = 1,
     row: int = 0,
@@ -279,14 +286,14 @@ def edit_table(
 
 @mcp.tool()
 def edit_page_layout(
-    action: str,
+    action: Literal["page_setup", "section_break", "header_footer", "flags"],
     target: dict | None = None,
     section: int = 1,
-    orientation: str = "",
+    orientation: Literal["", "portrait", "landscape"] = "",
     points: dict | None = None,
     columns: int = 1,
-    side: str = "header",
-    which: str = "primary",
+    side: Literal["header", "footer"] = "header",
+    which: Literal["primary", "first_page", "even"] = "primary",
     text: str = "",
     different_first_page: bool | None = None,
     odd_and_even: bool | None = None,
@@ -306,9 +313,9 @@ def edit_page_layout(
 
 @mcp.tool()
 def edit_fields(
-    action: str,
+    action: Literal["insert", "update", "update_all", "toc", "table_of_figures"],
     target: dict | None = None,
-    field: str = "page",
+    field: Literal["page", "date", "sequence"] = "page",
     toc_options: dict | None = None,
 ) -> str:
     """Insert fields, update fields, insert a table of contents or table of figures."""
@@ -323,13 +330,13 @@ def edit_fields(
 
 @mcp.tool()
 def edit_media(
-    action: str,
+    action: Literal["insert", "size", "wrap", "caption"],
     target: dict | None = None,
     image_index: int = 1,
     path: str = "",
     width: float | None = None,
     height: float | None = None,
-    wrap: str = "inline",
+    wrap: Literal["inline", "square", "tight", "through", "top_bottom"] = "inline",
     label: str = "Figure",
     title: str = "",
     position: str = "below",
@@ -348,7 +355,7 @@ def edit_media(
 
 @mcp.tool()
 def edit_links(
-    action: str,
+    action: Literal["hyperlink", "bookmark_add", "bookmark_find", "footnote", "endnote"],
     target: dict | None = None,
     address: str = "",
     sub_address: str = "",
@@ -373,7 +380,7 @@ def edit_links(
 
 @mcp.tool()
 def edit_content_controls(
-    action: str,
+    action: Literal["insert", "set_value", "list"],
     target: dict | None = None,
     control_index: int = 1,
     control_type: str = "rich_text",
@@ -395,12 +402,15 @@ def edit_content_controls(
 
 @mcp.tool()
 def edit_annotations(
-    action: str,
+    action: Literal[
+        "add_comment", "reply_comment", "resolve_comment", "delete_comment",
+        "track_changes", "accept_all", "reject_all",
+    ],
     target: dict | None = None,
     text: str = "",
     comment_index: int = 1,
     done: bool = True,
-    mode: str = "",
+    mode: Literal["", "on", "off", "mine"] = "",
     confirm: bool = False,
 ) -> str:
     """Comments, track changes mode, and accepting or rejecting revisions."""
