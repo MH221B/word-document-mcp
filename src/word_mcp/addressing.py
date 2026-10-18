@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 from word_mcp.errors import AmbiguousTarget, InvalidArgument, StaleToken, TargetNotFound
@@ -23,6 +23,24 @@ class TargetSpec:
     heading_path: str | None = None
     container: str = "body"
     occurrence: int | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TargetSpec":
+        """Build a spec from a tool argument, rejecting unknown keys."""
+        if not isinstance(data, dict):
+            raise InvalidArgument("target must be an object.")
+        allowed = {f.name for f in fields(cls)}
+        unknown = sorted(set(data) - allowed)
+        if unknown:
+            raise InvalidArgument(
+                f"Unknown target key(s) {unknown}.", allowed=sorted(allowed)
+            )
+        spec = cls(**data)
+        if spec.container not in CONTAINERS:
+            raise InvalidArgument(
+                f"Unknown container {spec.container!r}.", allowed=sorted(CONTAINERS)
+            )
+        return spec
 
 
 @dataclass

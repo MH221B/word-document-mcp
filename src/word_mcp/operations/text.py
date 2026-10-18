@@ -184,7 +184,7 @@ def format_text(
 def inspect_spec(target: dict):
     from word_mcp.addressing import TargetSpec
 
-    return TargetSpec(**target)
+    return TargetSpec.from_dict(target)
 
 
 def _copy_formatting(session, rng, source_handle) -> None:

@@ -94,13 +94,13 @@ def document_outline(depth: int = 9, refresh: bool = False) -> str:
 @mcp.tool()
 def read_range(target: dict, include_formatting: bool = False) -> str:
     """Read text at a target. Target is {"token": "..."} or {"text": "...", ...}."""
-    return run(lambda: inspect.read_range(SESSION, inspect.TargetSpec(**target), include_formatting))
+    return run(lambda: inspect.read_range(SESSION, inspect.TargetSpec.from_dict(target), include_formatting))
 
 
 @mcp.tool()
 def get_formatting(target: dict) -> str:
     """Formatting for a target, plus where direct formatting deviates from the style."""
-    return run(lambda: inspect.get_formatting(SESSION, inspect.TargetSpec(**target)))
+    return run(lambda: inspect.get_formatting(SESSION, inspect.TargetSpec.from_dict(target)))
 
 
 @mcp.tool()
@@ -115,10 +115,10 @@ def find_text(
 ) -> str:
     """Find every match with its context. Never guesses; returns candidates."""
     def go():
-        spec = inspect.TargetSpec(
-            text=text, container=container, heading_path=heading_path, style=style,
-            wildcards=wildcards, match_case=match_case,
-        )
+        spec = inspect.TargetSpec.from_dict({
+            "text": text, "container": container, "heading_path": heading_path,
+            "style": style, "wildcards": wildcards, "match_case": match_case,
+        })
         norm = inspect.normalise(text)
         # The heading_path filter runs after the search, so only bound the walk
         # when there is no filter to apply.
@@ -143,7 +143,7 @@ def inspect_document(refresh: bool = False) -> str:
 @mcp.tool()
 def get_ooxml(target: dict) -> str:
     """WordprocessingML for a target, for detailed inspection or copying."""
-    return run(lambda: inspect.get_ooxml(SESSION, inspect.TargetSpec(**target)))
+    return run(lambda: inspect.get_ooxml(SESSION, inspect.TargetSpec.from_dict(target)))
 
 
 @mcp.tool()
@@ -159,7 +159,7 @@ def edit_text(
     """Insert, replace, or delete text. format_mode is inherit, style_only, or explicit."""
     def go():
         return text_ops.edit_text(
-            SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
+            SESSION, HISTORY, inspect.TargetSpec.from_dict(target), inspect.resolve,
             action=action, text=text, position=position, format_mode=format_mode,
             formatting=formatting, confirm=confirm,
         )
@@ -177,7 +177,7 @@ def format_text(
     """Character, paragraph, clear, or copy-from formatting for a target."""
     def go():
         return text_ops.format_text(
-            SESSION, HISTORY, inspect.TargetSpec(**target), inspect.resolve,
+            SESSION, HISTORY, inspect.TargetSpec.from_dict(target), inspect.resolve,
             action=action, formatting=formatting, source=source, confirm=confirm,
         )
     return mutate(go)
@@ -220,7 +220,7 @@ def manage_style(
 ) -> str:
     """List, create, update, delete, or apply a style."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return style_ops.manage_style(
             SESSION, HISTORY, inspect.resolve, action=action, spec=spec, name=name,
             based_on=based_on, formatting=formatting, confirm=confirm,
@@ -241,7 +241,7 @@ def manage_list(
     def go():
         return style_ops.manage_list(
             SESSION, HISTORY, inspect.resolve, action=action,
-            spec=inspect.TargetSpec(**target), list_format=list_format, level=level,
+            spec=inspect.TargetSpec.from_dict(target), list_format=list_format, level=level,
             start_at=start_at, confirm=confirm,
         )
     return mutate(go)
@@ -265,7 +265,7 @@ def edit_table(
 ) -> str:
     """Insert or edit a table, including captions."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return structure_ops.edit_table(
             SESSION, HISTORY, inspect.resolve, action=action, spec=spec,
             table_index=table_index, row=row, column=column, rows=rows,
@@ -291,7 +291,7 @@ def edit_page_layout(
 ) -> str:
     """Page setup, section breaks, columns, headers and footers, and layout flags."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return structure_ops.edit_page_layout(
             SESSION, inspect.resolve, action=action, spec=spec, section=section,
             orientation=orientation, points=points, columns=columns, side=side,
@@ -310,7 +310,7 @@ def edit_fields(
 ) -> str:
     """Insert fields, update fields, insert a table of contents or table of figures."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return structure_ops.edit_fields(
             SESSION, inspect.resolve, action=action, spec=spec, field=field,
             toc_options=toc_options,
@@ -333,7 +333,7 @@ def edit_media(
 ) -> str:
     """Insert an image, size it, set wrapping, or add a caption."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return content_ops.edit_media(
             SESSION, inspect.resolve, action=action, spec=spec, image_index=image_index,
             path=path, width=width, height=height, wrap=wrap, label=label, title=title,
@@ -355,7 +355,7 @@ def edit_links(
 ) -> str:
     """Hyperlinks, bookmarks, footnotes, and endnotes."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return content_ops.edit_links(
             SESSION, inspect.resolve, action=action, spec=spec, address=address,
             sub_address=sub_address, screen_tip=screen_tip, display_text=display_text,
@@ -377,7 +377,7 @@ def edit_content_controls(
 ) -> str:
     """Insert, set, or list content controls."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return content_ops.edit_content_controls(
             SESSION, inspect.resolve, action=action, spec=spec,
             control_index=control_index, control_type=control_type, tag=tag,
@@ -398,7 +398,7 @@ def edit_annotations(
 ) -> str:
     """Comments, track changes mode, and accepting or rejecting revisions."""
     def go():
-        spec = inspect.TargetSpec(**target) if target else None
+        spec = inspect.TargetSpec.from_dict(target) if target else None
         return review_ops.edit_annotations(
             SESSION, inspect.resolve, action=action, spec=spec, text=text,
             comment_index=comment_index, done=done, mode=mode, confirm=confirm,
@@ -411,6 +411,6 @@ def insert_ooxml(target: dict, ooxml: str, confirm: bool = False) -> str:
     """Insert a WordprocessingML fragment at a target. Use for watermarks and shapes."""
     def go():
         return ooxml_ops.insert_ooxml(
-            SESSION, HISTORY, inspect.resolve, inspect.TargetSpec(**target), ooxml, confirm=confirm
+            SESSION, HISTORY, inspect.resolve, inspect.TargetSpec.from_dict(target), ooxml, confirm=confirm
         )
     return mutate(go)
