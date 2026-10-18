@@ -59,17 +59,17 @@ executed in this environment, with the behaviour to expect.
   pin is not cleared automatically, so call `connect_document` once Word is back.
   Not run: the Word instances on this machine also hold unrelated open documents,
   and killing them would risk that work.
-- Reads are cached per document version. On a 2,206-paragraph, 42-table document
-  the first `document_outline` takes about 2.5 seconds through the batched VBA scan
-  and 11-22 seconds through plain COM depending on Word state, with every later
-  call on the
+- Reads are cached per document version. On a 2,207-paragraph, 2-section, 42-table
+  document the first `document_outline` takes about 2.5 seconds through the batched
+  VBA scan and 11-22 seconds through plain COM depending on Word state, with every
+  later call on the
   unchanged document about 0.006 seconds; the first `inspect_document` takes about
   1.2 seconds and a repeat about 0.002 seconds. The VBA scan needs Trust access
   to the VBA project object model in Word; without it the server falls back to
   COM and reports `structure_source: "com"` with a `structure_hint`. `find_text` pays Word's scan plus
   about 30 ms per match it returns (its style is skipped unless the search
-  filters by style), so `limit=5` takes about 0.4 seconds and
-  `limit=20` about 0.9 seconds rather than visiting all 47 matches. An edit that
+  filters by style), so `limit=5` takes about 0.2 seconds and
+  `limit=20` about 0.7 seconds rather than visiting all 47 matches. An edit that
   can describe what it changed patches the cached index in place, so the read
   after an edit is warm instead of a full rebuild; anything it cannot describe
   drops the cache, which is rebuilt when the document's character count changes.
@@ -77,7 +77,7 @@ executed in this environment, with the behaviour to expect.
   `document_outline(refresh=true)` to force a rebuild. A multi-change
   `apply_edits` drops the cached index, so the next read rebuilds it. The COM
   fallback walks collections with `IEnumVARIANT.Next(256)`, which halves the
-  paragraph enumeration (~0.86 s to ~0.44 s on the 2,206-paragraph document).
+  paragraph enumeration (~0.86 s to ~0.44 s on the 2,207-paragraph document).
 
 ## Client registration check
 

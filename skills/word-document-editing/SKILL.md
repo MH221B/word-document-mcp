@@ -55,7 +55,9 @@ collect them.
 **Page furniture.** `edit_page_layout` handles page setup, columns, section
 breaks, and headers and footers by `side` and `which`. `header_footer` writes
 literal text. Header and footer offsets belong to their own story, so a target
-with `container="footer"` stays in the footer. Section 1 only.
+with `container="footer"` stays in the footer. Name a section after a colon,
+`container="footer:2"`; a bare name means section 1. `which` is not reachable
+from a container, so `container` always means the primary header or footer.
 
 Putting a page number in a footer takes two steps, because inserting a field
 replaces the text it was aimed at. Insert the field over a placeholder, then put
