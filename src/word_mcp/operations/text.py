@@ -226,7 +226,7 @@ def apply_edits(session, stack, edits: list[dict], resolve, confirm: bool = Fals
     for i, edit in enumerate(edits):
         try:
             result = edit_text(
-                session, stack, resolve, inspect_spec(edit.get("target", {})),
+                session, stack, inspect_spec(edit.get("target", {})), resolve,
                 action=edit.get("action", "replace"),
                 text=edit.get("text", ""),
                 position=edit.get("position", "end"),
