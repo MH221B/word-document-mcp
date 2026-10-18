@@ -58,6 +58,9 @@ class ChangeStack:
             raise WordMcpError("There is nothing to revert.")
         return self._items.pop()
 
+    def clear(self) -> None:
+        self._items.clear()
+
 
 def revert(session, stack: ChangeStack, op_id: int) -> dict:
     """Revert one change. Only the newest change can be reverted."""

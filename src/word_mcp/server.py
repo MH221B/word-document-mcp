@@ -71,6 +71,8 @@ def connect_document(path_or_name: str) -> str:
     """Pin one open document for the session. Fails if the name is ambiguous."""
     def go():
         info = SESSION.pin(path_or_name)
+        inspect.TOKENS.clear()
+        HISTORY.clear()
         return {"pinned": info.__dict__, "read_only": info.read_only}
     return run(go)
 
@@ -81,6 +83,7 @@ def disconnect_document() -> str:
     def go():
         SESSION.unpin()
         inspect.TOKENS.clear()
+        HISTORY.clear()
         return {"pinned": None}
     return run(go)
 
