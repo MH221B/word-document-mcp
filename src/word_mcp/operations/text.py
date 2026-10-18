@@ -30,24 +30,24 @@ def edit_text(
     if action == "insert":
         gate_range(len(text), confirm)
         return _insert(
-            session, stack, doc, rng, text, position, format_mode, formatting, spec.container,
+            session, stack, doc, rng, text, position, format_mode, formatting, match.container,
             tracked,
         )
     before = str(session.guard(lambda: rng.Text))
     if action == "replace":
         gate_delete(before, confirm)
         return _replace(
-            session, stack, doc, rng, text, before, format_mode, formatting, spec.container,
+            session, stack, doc, rng, text, before, format_mode, formatting, match.container,
             tracked,
         )
     if action == "delete":
         gate_delete(before, confirm)
         session.guard(lambda: rng.Delete())
         change = stack.record(
-            "text", f"delete {len(before)} chars", rng, container=spec.container, text_before=before
+            "text", f"delete {len(before)} chars", rng, container=match.container, text_before=before
         )
         note_span(session, rng)
-        session.note_result_range(rng, spec.container)
+        session.note_result_range(rng, match.container)
         return _result(change, doc, tracked=tracked)
     raise InvalidArgument(f"Unknown action {action!r}.", allowed=["insert", "replace", "delete"])
 
@@ -162,13 +162,13 @@ def format_text(
     match = resolve(session, spec)
     rng = match.handle
     note_span(session, rng)
-    session.note_result_range(rng, spec.container)
+    session.note_result_range(rng, match.container)
     length = int(session.guard(lambda: rng.End - rng.Start))
     gate_range(length, confirm)
 
     if action == "clear":
         before = _capture(session, rng)
-        change = stack.record("format", "clear formatting", rng, container=spec.container, format_before=before)
+        change = stack.record("format", "clear formatting", rng, container=match.container, format_before=before)
         _clear_formatting(session, rng)
         return _result(change, doc)
 
@@ -177,7 +177,7 @@ def format_text(
             raise InvalidArgument("action='copy_from' needs a source target.")
         src = resolve(session, inspect_spec(source))
         before = _capture(session, rng)
-        change = stack.record("format", "copy formatting", rng, container=spec.container, format_before=before)
+        change = stack.record("format", "copy formatting", rng, container=match.container, format_before=before)
         _copy_formatting(session, rng, src.handle)
         return _result(change, doc)
 
@@ -185,7 +185,7 @@ def format_text(
         if not formatting:
             raise InvalidArgument(f"action={action!r} needs a formatting dict.")
         before = _capture(session, rng)
-        change = stack.record("format", action, rng, container=spec.container, format_before=before)
+        change = stack.record("format", action, rng, container=match.container, format_before=before)
         apply_font(session, rng, formatting)
         return _result(change, doc)
 
