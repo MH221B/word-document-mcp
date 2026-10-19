@@ -8,9 +8,11 @@ samples/make_samples.py` rewrites it, `uv run python samples/open_sample.py`
 reopens it. The last test saves the document to a temporary copy and puts it back.
 """
 
+import json
+
 import pytest
 
-from word_mcp import inspect
+from word_mcp import inspect, server
 from word_mcp.errors import WordMcpError
 from word_mcp.history import ChangeStack
 from word_mcp.operations import document as document_ops
@@ -240,6 +242,62 @@ def test_deleting_a_heading_keeps_its_paragraph(session):
     emptied = next(h for h in after["headings"] if h["paragraph_index"] == heading["paragraph_index"])
     assert emptied["text"] == ""
     document_ops.revert_change(session, stack, result["operation_id"])
+
+
+def test_cold_find_does_not_build_or_walk_paragraphs(session, monkeypatch):
+    """A cold search labels live and never scans the body."""
+    session.invalidate_index()
+    built = []
+    monkeypatch.setattr(
+        "word_mcp.session.StructureIndex.build",
+        classmethod(lambda cls, *a: built.append(a)),
+    )
+
+    def forbid(*args, **kwargs):
+        raise AssertionError("a cold body search enumerated paragraphs")
+
+    monkeypatch.setattr(inspect, "raw_items", forbid)
+    found = inspect.find_all(session, inspect.TargetSpec(text="Total"))
+    assert found, "the sample still has matches"
+    assert all(m.heading_path is None for m in found)
+    assert built == [], "find_all built the index"
+    session.invalidate_index()
+
+
+def test_a_heading_filter_builds_the_index(session):
+    session.invalidate_index()
+    match = inspect.resolve(session, inspect.TargetSpec(text="Total", heading_path="Risks"))
+    assert session.peek_index() is not None, "a structure request builds the index"
+    assert "Risks" in (match.heading_path or "")
+
+
+def test_live_paragraph_index_agrees_with_a_warm_index(session):
+    warm = session.index()
+    doc = session.doc()
+    end = int(session.guard(lambda: doc.Content.End))
+    positions = [0, warm.paragraph_starts[1], warm.paragraph_starts[-1], end - 1]
+    if int(session.guard(lambda: doc.Tables.Count)) > 0:
+        cell = int(session.guard(lambda: doc.Tables(1).Cell(1, 1).Range.Start)) + 1
+        positions.append(cell)
+    for pos in positions:
+        handle = session.guard(lambda p=pos: doc.Range(p, p + 1))
+        assert inspect.live_paragraph_index(session, doc, handle, end) == warm.paragraph_index(pos)
+
+
+def test_a_cold_edit_returns_at_and_leaves_the_next_search_cold(session, monkeypatch):
+    session.invalidate_index()
+    monkeypatch.setattr(server, "SESSION", session)
+    stack = ChangeStack()
+    result = json.loads(server.mutate(lambda: text_ops.edit_text(
+        session, stack, inspect.TargetSpec(text="Total riders"), inspect.resolve,
+        action="insert", text="\nCold token bullet", position="end",
+    )))
+    assert result.get("at"), "a paragraph insert still reports its result"
+    assert result["at"]["heading_path"] is None
+    found = inspect.find_all(session, inspect.TargetSpec(text="Cold token bullet"))
+    assert found and found[0].heading_path is None
+    document_ops.revert_change(session, stack, result["operation_id"])
+    session.invalidate_index()
 
 
 def test_saved_copy_carries_the_text(tmp_path, session):
