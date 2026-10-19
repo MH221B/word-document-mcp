@@ -67,7 +67,7 @@ class Match:
     token: str
     text: str
     paragraph_index: int
-    heading_path: str
+    heading_path: str | None
     style: str
     container: str
     snippet: str

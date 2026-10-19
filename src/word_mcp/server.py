@@ -129,7 +129,7 @@ def find_text(
         stop = None if heading_path else limit
         out = []
         for match in inspect.find_all(SESSION, spec, stop_after=stop):
-            if heading_path and heading_path not in match.heading_path:
+            if heading_path and heading_path not in (match.heading_path or ""):
                 continue
             out.append({**match.describe(), "matched": norm in inspect.normalise(match.text)})
             if len(out) >= limit:

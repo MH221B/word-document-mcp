@@ -13,6 +13,7 @@ from word_mcp.addressing import (
     TokenStore,
     choose,
     normalise,
+    split_container,
 )
 from word_mcp.comfast import PARAGRAPH, RANGE, STYLE, raw_items
 from word_mcp.errors import InvalidArgument
@@ -61,6 +62,17 @@ def paragraph_context(session, rng: Any, paragraphs: list) -> tuple[int, str, st
     return -1, "", ""
 
 
+def live_paragraph_index(session, doc: Any, handle: Any, doc_end: int) -> int:
+    """The 0-based paragraph index for a body range, without the index.
+
+    `+ 1` includes the paragraph that starts at the match. Without it a match on
+    a paragraph's first character reports the previous paragraph.
+    """
+    start = int(session.guard(lambda: handle.Start))
+    stop = min(start + 1, doc_end)
+    return int(session.guard(lambda: doc.Range(0, stop).Paragraphs.Count)) - 1
+
+
 def match_from_range(
     session,
     handle: Any,
@@ -68,16 +80,25 @@ def match_from_range(
     paragraphs: list,
     container: str = "body",
     need_style: bool = True,
+    doc_end: int | None = None,
 ) -> Match:
     """Wrap a Word range as a Match and register an anchor token for it.
 
-    Body context comes from the structure index. A header or footer has its own
-    offset space, so it is scanned within its own story instead.
+    Body context comes from the structure index when it is warm. A cold body
+    answers with a live paragraph count and no heading path; a header or footer
+    has its own offset space, so it is scanned within its own story.
     """
+    name, _ = split_container(container)
     if index is not None:
         offset = session.guard(lambda: handle.Start)
         paragraph_index = index.paragraph_index(offset)
         path = index.heading_path(offset)
+    elif name == "body":
+        doc = session.doc()
+        if doc_end is None:
+            doc_end = int(session.guard(lambda: doc.Content.End))
+        paragraph_index = live_paragraph_index(session, doc, handle, doc_end)
+        path = None
     else:
         paragraph_index, path, _ = paragraph_context(session, handle, paragraphs)
     text = str(session.guard(lambda: handle.Text)).replace("\r", "").replace("\x07", "")
@@ -320,7 +341,7 @@ def resolve(session, spec: TargetSpec) -> Match:
             bound = spec.occurrence + 1
         found = find_all(session, spec, stop_after=bound)
         if spec.heading_path:
-            narrowed = [m for m in found if spec.heading_path in m.heading_path]
+            narrowed = [m for m in found if spec.heading_path in (m.heading_path or "")]
             found = narrowed or found
         return choose(spec.text or spec.style or "", found, spec.occurrence)[0]
     raise InvalidArgument("Give a token, or text, style, or heading_path.")
