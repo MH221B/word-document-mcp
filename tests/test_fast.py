@@ -407,3 +407,55 @@ def test_peek_index_never_builds_and_drops_a_stale_index(monkeypatch):
     assert stale.peek_index() is None
     assert stale._index is None, "a stale index is dropped, so outline rebuilds"
     assert built == [], "peek_index never builds"
+
+def test_at_is_best_effort(monkeypatch):
+    import json
+
+    from word_mcp import server
+    from word_mcp.errors import WordMcpError
+
+    class Stub:
+        def __init__(self, stash):
+            self.stash = stash
+
+        def begin_call(self):
+            pass
+
+        def begin_change(self, effect="structure"):
+            pass
+
+        def settle_index(self):
+            pass
+
+        def take_result_range(self):
+            return self.stash
+
+    class FakeMatch:
+        def describe(self):
+            return {"token": "t"}
+
+    monkeypatch.setattr(server, "SESSION", Stub((object(), "body")))
+    monkeypatch.setattr(server.inspect, "anchor", lambda *a: FakeMatch())
+    out = json.loads(server.mutate(lambda: {"operation_id": 1}))
+    assert out["at"] == {"token": "t"}
+
+    monkeypatch.setattr(server, "SESSION", Stub((object(), "body")))
+
+    def boom(*a):
+        raise WordMcpError("no context")
+
+    monkeypatch.setattr(server.inspect, "anchor", boom)
+    out = json.loads(server.mutate(lambda: {"operation_id": 1}))
+    assert "at" not in out, "a label failure must not fail a committed edit"
+
+    monkeypatch.setattr(server, "SESSION", Stub((object(), "body")))
+    out = json.loads(
+        server.mutate(lambda: {"applied": [], "error": {"code": "batch_stopped"}})
+    )
+    assert "at" not in out, "a partial batch has no unambiguous at"
+
+    monkeypatch.setattr(server.inspect, "anchor", lambda *a: FakeMatch())
+    out = json.loads(
+        server.mutate(lambda: {"applied": [{"operation_id": 1}], "error": None})
+    )
+    assert out["at"] == {"token": "t"}, "a successful batch names its last edit"

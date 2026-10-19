@@ -53,9 +53,12 @@ def mutate(fn: Callable[[], Any], effect: str = "structure") -> str:
         return tool_error(exc)
     SESSION.settle_index()
     stash = SESSION.take_result_range()
-    if stash is not None and SESSION.has_index():
+    if stash is not None and not out.get("error"):
         handle, container = stash
-        out["at"] = inspect.anchor(SESSION, handle, container).describe()
+        try:
+            out["at"] = inspect.anchor(SESSION, handle, container).describe()
+        except WordMcpError:
+            pass
     return json.dumps(out, indent=2, default=str)
 
 

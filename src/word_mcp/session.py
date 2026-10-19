@@ -365,9 +365,6 @@ class ComWordSession:
         self._result_range = None
         return out
 
-    def has_index(self) -> bool:
-        return self._index is not None
-
     def settle_index(self) -> None:
         """Patch the cached index if the recorded change verifies, else drop it.
 

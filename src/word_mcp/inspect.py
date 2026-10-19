@@ -120,17 +120,22 @@ def match_from_range(
 def anchor(session, handle, container: str = "body") -> Match:
     """Register a token for a range and describe where it is.
 
-    Body context comes from the settled structure index; a header or footer has
-    its own offset space, so it is scanned within its own story.
+    Body context comes from the warm structure index or the live range; a header
+    or footer has its own offset space and is scanned within its own story.
     """
-    if container == "body":
-        index = session.index()
+    name, _ = split_container(container)
+    if name == "body":
+        index = session.peek_index()
         paragraphs: list = []
+        doc_end = None
+        if index is None:
+            doc_end = int(session.guard(lambda: session.doc().Content.End))
     else:
         index = None
         host = story_range(session.doc(), container)
         paragraphs = session.guard(lambda: raw_items(host.Paragraphs))
-    return match_from_range(session, handle, index, paragraphs, container)
+        doc_end = None
+    return match_from_range(session, handle, index, paragraphs, container, doc_end=doc_end)
 
 
 def _heading_match(index, heading, handle, token: str = "") -> Match:
