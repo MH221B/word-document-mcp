@@ -256,6 +256,17 @@ class ComWordSession:
         self._index = None
         self._inventory = None
 
+    def peek_index(self) -> StructureIndex | None:
+        """The cached index if it still matches the document. Never builds."""
+        index = self._index
+        if index is None:
+            return None
+        doc = self.doc()
+        if int(self.guard(lambda: doc.Content.End)) != index.fingerprint:
+            self.invalidate_index()
+            return None
+        return index
+
     def inventory(self) -> dict | None:
         """The cached document inventory, or None when it must be re-read."""
         return self._inventory

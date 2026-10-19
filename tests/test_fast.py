@@ -381,3 +381,29 @@ def test_settle_keeps_the_index_for_a_non_body_change():
     session.note_change(0, 7, container="body")
     session._settle()
     assert session._index is None
+
+def test_peek_index_never_builds_and_drops_a_stale_index(monkeypatch):
+    from types import SimpleNamespace
+
+    from word_mcp.session import ComWordSession
+
+    built = []
+    monkeypatch.setattr(
+        "word_mcp.session.StructureIndex.build",
+        classmethod(lambda cls, *a: built.append(a)),
+    )
+
+    def session_with(end, fingerprint):
+        s = ComWordSession()
+        s._index = SimpleNamespace(fingerprint=fingerprint)
+        s._doc = SimpleNamespace(Content=SimpleNamespace(End=end))
+        s._validated = True
+        return s
+
+    warm = session_with(100, 100)
+    assert warm.peek_index() is warm._index
+
+    stale = session_with(101, 100)
+    assert stale.peek_index() is None
+    assert stale._index is None, "a stale index is dropped, so outline rebuilds"
+    assert built == [], "peek_index never builds"
