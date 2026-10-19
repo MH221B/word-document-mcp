@@ -142,10 +142,8 @@ Measured on a 2,207-paragraph, 2-section, 42-table document.
 | `find_text`, 1 match | 0.05 s | 0.05 s |
 | `find_text`, `limit=20` | 0.7 s | 0.7 s |
 
-Before this change the first `find_text` also paid the index build, because a cold
-search built it to label its matches. That made the first call 2.1 s with the VBA
-scan and 11 to 22 s with the COM fallback, on top of the search. A cold search now
-labels from the live range, so the first call costs the search alone.
+A cold `find_text` labels from the live range, so the first call costs the search
+alone.
 
 An edit that drops a cache pays for the rebuild on the next `document_outline`.
 `find_text` stays live and does not rebuild. That is about 2.7 s for the index and
