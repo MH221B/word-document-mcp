@@ -105,12 +105,13 @@ returns its own; the other mutations are not recorded and cannot be reverted.
   for ten seconds, so wait for the user rather than looping.
 - `word_disconnected` means Word closed. Ask the user to reopen the document, then
   connect again.
-- Reads come from a structure index cached per document version, so a second
-  `document_outline` on an unchanged document is nearly free. A normal edit made
-  through a tool keeps the structure warm, because the edit patches the index in
-  place. A multi-change `apply_edits` drops the index instead, so the next read is
-  a full rebuild. A change made directly in Word, rather than through a tool, may
-  need `document_outline(refresh=true)` before the new headings appear.
+- Reads use a structure index when one is already warm. A plain `find_text` never
+  builds it: on a cold document a match carries `paragraph_index` and
+  `heading_path: null`. Call `document_outline` when you need paths, or pass
+  `heading_path` to a search, which builds the index. A normal edit made through a
+  tool keeps a warm index; a multi-change `apply_edits` drops it, and the next
+  `document_outline` rebuilds it, not the next search. A change made directly in
+  Word may need `document_outline(refresh=true)` before the new headings appear.
 
 ## Reference
 

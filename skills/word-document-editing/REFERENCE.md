@@ -54,10 +54,10 @@ rather than eating the break and merging the next paragraph into the heading.
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `document_outline` | `depth=9`, `refresh=false` | Headings with tokens, tables with size, sections with page size, images, and `structure_source` (`"vba"` or `"com"`). Structure is cached, so calling it again on an unchanged document is cheap. `refresh=true` rebuilds after a structural change made by hand in Word. When the COM fallback was due to a denied VBA path, `structure_hint` explains how to enable the faster scan. |
+| `document_outline` | `depth=9`, `refresh=false` | Headings with tokens, tables with size, sections with page size, images, and `structure_source` (`"vba"` or `"com"`). Structure is cached, so calling it again on an unchanged document is cheap. `refresh=true` rebuilds after a structural change made by hand in Word. When the COM fallback was due to a denied VBA path, `structure_hint` explains how to enable the faster scan. This is the tool that builds the index; a `heading_path`-filtered search can also build it. |
 | `read_range` | `target`, `include_formatting=False` | Text, and optionally the formatting block. |
 | `get_formatting` | `target` | Paragraph and character style, font and paragraph snapshots, and `deviations_from_style`. |
-| `find_text` | `text`, `container`, `heading_path`, `style`, `wildcards`, `match_case`, `limit=20` | Candidates with context. Never fails on ambiguity. |
+| `find_text` | `text`, `container`, `heading_path`, `style`, `wildcards`, `match_case`, `limit=20` | Candidates with context. Never fails on ambiguity. When the index is cold, `heading_path` is null; the search does not build it. |
 | `inspect_document` | `refresh=false` | Template path, protection, track-changes state, styles, comments, revisions, bookmarks, content controls, properties. Read once per document version and cached, so a repeat call is nearly free; `refresh=true` re-reads it after a change made by hand in Word. |
 | `get_ooxml` | `target` | Flat WordprocessingML for the range. |
 
@@ -70,7 +70,8 @@ template-conformant.
 `edit_text` (`target`, `action`, `text`, `position`, `format_mode`, `formatting`, `confirm`)
 Actions: `insert`, `replace`, `delete`. The result carries `at`, describing the
 **post-edit** range: for `delete` it is the zero-width caret where the text was,
-so `at.text` is empty.
+so `at.text` is empty. `at` is best effort: if its context cannot be read, the key
+is omitted rather than failing the edit.
 
 `apply_edits` (`edits`, `confirm`)
 Applies a list of `edit_text` argument objects in order, in one call. Stops at the
@@ -78,7 +79,8 @@ first failure and returns the partial state under the standard error key:
 `{"applied": [...], "error": {"code": "batch_stopped", "index": i, "cause": {...}}}`.
 Each applied entry carries its own `operation_id`; recover a partial batch with
 reverse-order `revert_change` calls. A multi-change batch drops the cached index,
-so the next read rebuilds it.
+so the next `document_outline` rebuilds it. `at` describes the last applied entry;
+a partial batch carries an error and no `at`.
 
 `format_text` (`target`, `action`, `formatting`, `source`, `confirm`)
 Actions: `character`, `paragraph`, `clear`, `copy_from` where `source` is another target.

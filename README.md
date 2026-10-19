@@ -75,9 +75,10 @@ edit_text({"text": "Draft"}, "replace", text="Final")    the result carries `at`
 revert_change(1)                                        undo it
 ```
 
-Two caches make a repeat read cheap. `document_outline` builds a structure index.
-`inspect_document` builds an inventory. Each cache stays valid until the document
-changes underneath it. Most edits keep both.
+Two caches make a repeat read cheap. `document_outline` builds a structure index,
+and `inspect_document` builds an inventory. A plain `find_text` does not build the
+index: when it is cold, a match carries `paragraph_index` and a null
+`heading_path`. A `heading_path`-filtered search, or `document_outline`, builds it.
 
 ```text
 both caches kept
@@ -138,21 +139,22 @@ Measured on a 2,207-paragraph, 2-section, 42-table document.
 | `document_outline`, VBA scan | 2.5 s | 0.006 s |
 | `document_outline`, COM fallback | 11 to 22 s | 0.006 s |
 | `inspect_document` | 1.2 s | 0.002 s |
-| `find_text`, `limit=5` | 0.2 s | |
-| `find_text`, `limit=20` | 0.7 s | |
+| `find_text`, cold, 1 match | 0.5 s | |
+| `find_text`, warm | 0.2-0.7 s | |
 
-An edit that drops a cache pays for the rebuild on the next read. That is about
-2.7 s for the index and about 1.1 s for the inventory, so an edit in the `both
-caches re-read` group costs about 3.8 s across the next two reads.
+An edit that drops a cache pays for the rebuild on the next `document_outline`.
+`find_text` stays live and does not rebuild. That is about 2.7 s for the index and
+about 1.1 s for the inventory, paid only when the structure is asked for.
 
 Turn on Trust access to the VBA project object model. It is the difference between
 a 2.5 second outline and an 11 second one. Without it the server uses COM, reports
 `structure_source: "com"`, and adds a `structure_hint` that says how to enable the
 faster scan.
 
-`find_text` costs about 30 ms per match it returns, and it skips the style unless
-the search filters by style. The `limit` argument bounds the search itself, so
-`limit=20` stops after 20 matches instead of visiting all 47.
+`find_text` costs about 30 ms per match when the index is warm, and 4 to 27 ms for
+the live paragraph index when it is cold. It skips the style unless the search
+filters by style. The `limit` argument bounds the search itself, so `limit=20`
+stops after 20 matches instead of visiting all 47.
 
 The COM fallback walks collections with `IEnumVARIANT.Next(256)`. That halves the
 paragraph enumeration, from 0.86 s to 0.44 s on this document.
