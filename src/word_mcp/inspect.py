@@ -290,15 +290,28 @@ def find_all(session, spec: TargetSpec, stop_after: int | None = None) -> list[M
     """Every match, without the ambiguity failure. Used by find_text.
 
     `stop_after` bounds the walk. Word redefines the searched range on every
-    Execute and describing one match costs ~120 ms, so a caller that wants the
-    first few matches must not pay for the rest. The scan itself is ~0.25 s.
+    Execute and describing one match costs a few tens of milliseconds, so a
+    caller that wants the first few matches must not pay for the rest. The scan
+    itself is ~0.25 s.
+
+    A cold body is labelled live. A heading_path filter is the one search that
+    builds the structure index, because it asks for structure.
     """
     doc = session.doc()
     host = search_range(session, doc, spec)
-    # A header or footer has its own offset space, so it keeps its own paragraph
-    # list; the body answers from the index instead of enumerating paragraphs.
-    index = session.index() if spec.container == "body" else None
-    paragraphs = [] if index is not None else session.guard(lambda: raw_items(host.Paragraphs))
+    name, _ = split_container(spec.container)
+    if name == "body":
+        # A cold body answers live; only an explicit heading filter builds.
+        index = session.peek_index()
+        if index is None and spec.heading_path:
+            index = session.index()
+        paragraphs: list = []
+        doc_end = None if index is not None else int(session.guard(lambda: doc.Content.End))
+    else:
+        # A header or footer has its own offset space and its own paragraphs.
+        index = None
+        paragraphs = session.guard(lambda: raw_items(host.Paragraphs))
+        doc_end = None
     def _setup():
         find = host.Find
         find.Text = spec.text or ""
@@ -318,7 +331,10 @@ def find_all(session, spec: TargetSpec, stop_after: int | None = None) -> list[M
         # the body and lose the match inside a header or footer.
         rng = session.guard(lambda: find.Parent.Duplicate)
         found.append(
-            match_from_range(session, rng, index, paragraphs, spec.container, bool(spec.style))
+            match_from_range(
+                session, rng, index, paragraphs, spec.container,
+                bool(spec.style), doc_end,
+            )
         )
         if stop_after is not None and len(found) >= stop_after:
             break
